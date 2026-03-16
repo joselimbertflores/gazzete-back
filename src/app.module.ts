@@ -5,7 +5,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validate } from './config';
+
 import { DocumentsModule } from './modules/documents/documents.module';
+import { UsersModule } from './modules/users/users.module';
+import { FilesModule } from './modules/files/files.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -26,6 +30,9 @@ import { DocumentsModule } from './modules/documents/documents.module';
         synchronize: true,
       }),
     }),
+    AuthModule,
+    UsersModule,
+    FilesModule,
     DocumentsModule,
   ],
   controllers: [AppController],

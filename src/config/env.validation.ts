@@ -24,6 +24,9 @@ export class EnvironmentVariables {
   DATABASE_PASSWORD: string;
 
   @IsString()
+  UPLOAD_PATH: string;
+
+  @IsString()
   IDENTITY_HUB_URL: string;
 
   @IsString()

@@ -1,25 +1,16 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
 
-import {
-  CreateDocumentTypeDto,
-  UpdateDocumentTypeDto,
-} from '../dtos/document-type.dto';
-import { DocumentRecord, DocumentType } from '../entities';
+import { CreateDocumentTypeDto, UpdateDocumentTypeDto } from '../dtos/document-type.dto';
+import { DocumentRecord, DocumentRecordType } from '../entities';
 
 @Injectable()
 export class DocumentTypeService {
   constructor(
-    @InjectRepository(DocumentType)
-    private readonly documentTypeRepository: Repository<DocumentType>,
-    @InjectRepository(DocumentRecord)
-    private readonly documentRepository: Repository<DocumentRecord>,
+    @InjectRepository(DocumentRecordType) private documentTypeRepository: Repository<DocumentRecordType>,
+    @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
   ) {}
 
   async create(createDocumentTypeDto: CreateDocumentTypeDto) {
@@ -42,10 +33,7 @@ export class DocumentTypeService {
   async update(id: number, updateDocumentTypeDto: UpdateDocumentTypeDto) {
     const documentType = await this.findByIdOrFail(id);
 
-    if (
-      updateDocumentTypeDto.name &&
-      updateDocumentTypeDto.name !== documentType.name
-    ) {
+    if (updateDocumentTypeDto.name && updateDocumentTypeDto.name !== documentType.name) {
       await this.ensureNameIsAvailable(updateDocumentTypeDto.name, id);
     }
 
@@ -62,9 +50,7 @@ export class DocumentTypeService {
     });
 
     if (linkedDocuments > 0) {
-      throw new ConflictException(
-        'Document type cannot be removed because it is used by documents',
-      );
+      throw new ConflictException('Document type cannot be removed because it is used by documents');
     }
 
     await this.documentTypeRepository.remove(documentType);
@@ -93,9 +79,7 @@ export class DocumentTypeService {
     });
 
     if (existingDocumentType && existingDocumentType.id !== currentId) {
-      throw new ConflictException(
-        `Document type with name "${name}" already exists`,
-      );
+      throw new ConflictException(`Document type with name "${name}" already exists`);
     }
   }
 }

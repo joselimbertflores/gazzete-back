@@ -1,6 +1,24 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsDate,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  ValidateNested,
+} from 'class-validator';
+import { DocumentRelationType } from '../entities';
 
+export class DocumentRelationDto {
+  @IsEnum(DocumentRelationType)
+  type: DocumentRelationType;
+
+  @IsUUID()
+  targetDocumentId: string;
+}
 export class CreateDocumentDto {
   @IsInt()
   @Type(() => Number)
@@ -33,9 +51,14 @@ export class CreateDocumentDto {
   @IsDate()
   @Type(() => Date)
   @IsOptional()
-  validUntil: Date;
-  file;
-  fileId;
-  createdAt;
-  updatedAt;
+  validUntil?: Date;
+
+  @IsUUID()
+  fileId: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DocumentRelationDto)
+  @IsOptional()
+  relations?: DocumentRelationDto[];
 }

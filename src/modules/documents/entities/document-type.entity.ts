@@ -3,7 +3,7 @@ import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { DocumentRecord } from './document.entity';
 
 @Entity('document_types')
-export class DocumentType {
+export class DocumentRecordType {
   @PrimaryGeneratedColumn()
   id: number;
 

@@ -9,16 +9,16 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-import { DocumentType } from './document-type.entity';
+import { DocumentRecordType } from './document-type.entity';
 
 @Entity('documents')
 export class DocumentRecord {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => DocumentType)
+  @ManyToOne(() => DocumentRecordType)
   @JoinColumn({ name: 'typeId' })
-  type: DocumentType;
+  type: DocumentRecordType;
 
   @Column()
   typeId: number;

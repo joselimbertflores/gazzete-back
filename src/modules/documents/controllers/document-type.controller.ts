@@ -1,18 +1,6 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseIntPipe,
-  Patch,
-  Post,
-} from '@nestjs/common';
+import { Body, Get, Post, Patch, Param, Delete, ParseIntPipe, Controller } from '@nestjs/common';
 
-import {
-  CreateDocumentTypeDto,
-  UpdateDocumentTypeDto,
-} from '../dtos/document-type.dto';
+import { CreateDocumentTypeDto, UpdateDocumentTypeDto } from '../dtos/document-type.dto';
 import { DocumentTypeService } from '../services/document-type.service';
 
 @Controller('document-types')
@@ -35,10 +23,7 @@ export class DocumentTypeController {
   }
 
   @Patch(':id')
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateDocumentTypeDto: UpdateDocumentTypeDto,
-  ) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateDocumentTypeDto: UpdateDocumentTypeDto) {
     return this.documentTypeService.update(id, updateDocumentTypeDto);
   }
 
