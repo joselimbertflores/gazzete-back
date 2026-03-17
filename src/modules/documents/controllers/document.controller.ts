@@ -1,11 +1,19 @@
-import { Controller, Post } from '@nestjs/common';
+import { Controller, Get, Post } from '@nestjs/common';
 
 import { CreateDocumentDto } from '../dtos/document.dto';
-import { DocumentService } from '../services';
+import { DocumentService, DocumentTypeService } from '../services';
 
 @Controller('documents')
 export class DocumentController {
-  constructor(private documentService: DocumentService) {}
+  constructor(
+    private documentService: DocumentService,
+    private documentTypeService: DocumentTypeService,
+  ) {}
+
+  @Get('types')
+  getDocumentTypes() {
+    return this.documentTypeService.getActiveTypes();
+  }
 
   @Post()
   create(body: CreateDocumentDto) {

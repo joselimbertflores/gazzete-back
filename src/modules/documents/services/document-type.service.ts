@@ -82,4 +82,8 @@ export class DocumentTypeService {
       throw new ConflictException(`Document type with name "${name}" already exists`);
     }
   }
+
+  async getActiveTypes() {
+    return this.documentTypeRepository.find({ where: { isActive: true } });
+  }
 }

@@ -68,14 +68,14 @@ export class OAuthGuard implements CanActivate {
   }
 
   private setCookies(res: Response, result: TokenRequestResponse) {
-    res.cookie('intranet_access', result.accessToken, {
+    res.cookie('gazette_access', result.accessToken, {
       httpOnly: true,
       sameSite: 'lax',
       secure: false,
       maxAge: result.accessTokenExpiresIn * 1000,
     });
 
-    res.cookie('intranet_refresh', result.refreshToken, {
+    res.cookie('gazette_refresh', result.refreshToken, {
       httpOnly: true,
       sameSite: 'lax',
       secure: false,
@@ -84,7 +84,7 @@ export class OAuthGuard implements CanActivate {
   }
 
   private clearCookies(res: Response) {
-    res.clearCookie('intranet_access');
-    res.clearCookie('intranet_refresh');
+    res.clearCookie('gazette_access');
+    res.clearCookie('gazette_refresh');
   }
 }

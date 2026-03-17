@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { DocumentRecord, DocumentRelation, DocumentRecordType } from './entities';
-import { DocumentService, DocumentTypeService } from './services';
 import { DocumentController, DocumentTypeController } from './controllers';
+import { DocumentService, DocumentTypeService } from './services';
 import { FilesModule } from '../files/files.module';
 
 @Module({

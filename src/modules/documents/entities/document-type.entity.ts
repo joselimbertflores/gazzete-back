@@ -12,4 +12,7 @@ export class DocumentRecordType {
 
   @OneToMany(() => DocumentRecord, (document) => document.type)
   documents: DocumentRecord[];
+
+  @Column({ default: true })
+  isActive: boolean;
 }

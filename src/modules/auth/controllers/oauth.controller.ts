@@ -34,7 +34,9 @@ export class OAuthController {
      */
     if (queryParams.error) {
       res.clearCookie('oauth_state');
-      return res.redirect(`http://localhost:7001/auth/error?error=${queryParams.error}`);
+      return res.redirect(
+        `http://localhost:7001/auth/error?error=${queryParams.error}&client_name=${queryParams.client_name}`,
+      );
     }
 
     /**
@@ -53,14 +55,14 @@ export class OAuthController {
 
     res.clearCookie('oauth_state');
 
-    res.cookie('intranet_access', result.accessToken, {
+    res.cookie('gazette_access', result.accessToken, {
       httpOnly: true,
       sameSite: 'lax',
       secure: false,
       maxAge: result.accessTokenExpiresIn * 1000,
     });
 
-    res.cookie('intranet_refresh', result.refreshToken, {
+    res.cookie('gazette_refresh', result.refreshToken, {
       httpOnly: true,
       sameSite: 'lax',
       secure: false,

@@ -23,4 +23,8 @@ export class AuthCallbackParamsDto {
   @IsString()
   @IsNotEmpty()
   error?: string;
+
+  @IsOptional()
+  @IsString()
+  client_name?: string;
 }

@@ -4,10 +4,10 @@ import {
   IsDate,
   IsEnum,
   IsInt,
+  IsUUID,
+  IsString,
   IsNotEmpty,
   IsOptional,
-  IsString,
-  IsUUID,
   ValidateNested,
 } from 'class-validator';
 import { DocumentRelationType } from '../entities';

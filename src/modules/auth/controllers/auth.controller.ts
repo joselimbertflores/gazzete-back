@@ -16,8 +16,8 @@ export class AuthController {
 
   @Post('logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('intranet_access');
-    res.clearCookie('intranet_refresh');
+    res.clearCookie('gazette_access');
+    res.clearCookie('gazette_refresh');
 
     return {
       ok: true,
