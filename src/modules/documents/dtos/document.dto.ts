@@ -26,11 +26,7 @@ export class CreateDocumentDto {
 
   @IsInt()
   @Type(() => Number)
-  number: number;
-
-  @IsInt()
-  @Type(() => Number)
-  year: number;
+  correlativeNumber: number;
 
   @IsString()
   @IsNotEmpty()

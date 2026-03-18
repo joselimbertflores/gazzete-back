@@ -1,16 +1,18 @@
 import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
 import {
   Column,
-  CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
-  PrimaryGeneratedColumn,
+  CreateDateColumn,
   UpdateDateColumn,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
 
 import { DocumentRecordType } from './document-type.entity';
 
+@Index(['typeId', 'correlativeNumber'], { unique: true })
 @Entity('documents')
 export class DocumentRecord {
   @PrimaryGeneratedColumn('uuid')
@@ -24,7 +26,7 @@ export class DocumentRecord {
   typeId: number;
 
   @Column()
-  number: number;
+  correlativeNumber: number;
 
   @Column()
   year: number;

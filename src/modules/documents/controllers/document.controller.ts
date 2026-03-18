@@ -1,7 +1,8 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 
 import { CreateDocumentDto } from '../dtos/document.dto';
 import { DocumentService, DocumentTypeService } from '../services';
+import { PaginationParamsDto } from 'src/modules/common';
 
 @Controller('documents')
 export class DocumentController {
@@ -16,7 +17,12 @@ export class DocumentController {
   }
 
   @Post()
-  create(body: CreateDocumentDto) {
+  create(@Body() body: CreateDocumentDto) {
     return this.documentService.create(body);
+  }
+
+  @Get()
+  findAll(@Param() params: PaginationParamsDto) {
+    return this.documentService.findAll(params);
   }
 }

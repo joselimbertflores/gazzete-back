@@ -12,6 +12,11 @@ import mime from 'mime-types';
 
 import { StoredFile } from './entities/stored-file.entity';
 
+export class UploadedFileResult {
+  id: string;
+  name: string;
+}
+
 @Injectable()
 export class FilesService {
   private readonly BASE_UPLOAD_PATH: string;
@@ -24,7 +29,7 @@ export class FilesService {
     this.BASE_UPLOAD_PATH = join(process.cwd(), uploadPath);
   }
 
-  async uploadDocument(file: Express.Multer.File, year: number) {
+  async uploadDocument(file: Express.Multer.File, year: number): Promise<UploadedFileResult> {
     const extension = mime.extension(file.mimetype);
 
     if (!extension) throw new Error(`Unsupported mime type: ${file.mimetype}`);
@@ -44,7 +49,11 @@ export class FilesService {
         mimeType: file.mimetype,
         sizeBytes: file.size,
       });
-      return this.fileRepository.save(entity);
+      const createdFile = await this.fileRepository.save(entity);
+      return {
+        id: createdFile.id,
+        name: createdFile.originalName,
+      };
     } catch (error: unknown) {
       await unlink(finalPath);
       throw error;
@@ -71,8 +80,8 @@ export class FilesService {
     return { stream, file };
   }
 
-  // buildPublicFileUrl(id: string) {
-  //   const host = this.configService.getOrThrow<string>('HOST');
-  //   return `${host}/files/${id}`;
-  // }i
+  buildPublicFileUrl(id: string) {
+    const host = this.configService.getOrThrow<string>('HOST');
+    return `${host}/files/${id}`;
+  }
 }

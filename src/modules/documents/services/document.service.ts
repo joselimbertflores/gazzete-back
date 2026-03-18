@@ -1,12 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, ILike, In, Repository } from 'typeorm';
 
 import { DocumentRecord, DocumentRecordType, DocumentRelation, DocumentRelationType } from '../entities';
 import { StoredFile, StoredFileStatus } from 'src/modules/files/entities/stored-file.entity';
 import { FilesService } from 'src/modules/files/files.service';
 import { CreateDocumentDto, DocumentRelationDto } from '../dtos';
+import { PaginationParamsDto } from 'src/modules/common';
 
 @Injectable()
 export class DocumentService {
@@ -17,13 +18,33 @@ export class DocumentService {
     private dataSource: DataSource,
   ) {}
 
+  async findAll({ limit, offset, term }: PaginationParamsDto) {
+    const [documents, total] = await this.documentRepository.findAndCount({
+      ...(term && { where: { title: ILike(`%${term}%`) } }),
+      take: limit,
+      skip: offset,
+      relations: ['type', 'file'],
+      order: { publicationDate: 'DESC' },
+    });
+
+    return {
+      documents: documents.map((doc) => this.toDto(doc)),
+      total,
+    };
+  }
+
   async create(dto: CreateDocumentDto) {
     const { typeId, fileId, relations = [], ...rest } = dto;
 
     const validProps = await this.validateDocumentRelations(typeId, fileId, relations);
 
     return this.dataSource.transaction(async (manager) => {
-      const createdDocument = manager.create(DocumentRecord, { type: validProps.type, file: validProps.file, ...rest });
+      const createdDocument = manager.create(DocumentRecord, {
+        type: validProps.type,
+        file: validProps.file,
+        year: rest.publicationDate.getFullYear(),
+        ...rest,
+      });
 
       await manager.save(createdDocument);
 
@@ -56,7 +77,7 @@ export class DocumentService {
 
     const documents = await this.documentRepository.find({
       where: { id: In(ids) },
-      select: ['id', 'title', 'summary', 'number', 'year'],
+      select: ['id', 'title', 'summary'],
     });
     if (documents.length !== ids.length) {
       throw new BadRequestException('Invalid target document. Some documents do not exist');
@@ -69,6 +90,19 @@ export class DocumentService {
         targetDocument: doc,
         relationType: relationRecord[doc.id],
       })),
+    };
+  }
+
+  private toDto(doc: DocumentRecord) {
+    const { file, ...rest } = doc;
+    return {
+      ...rest,
+      code: `${doc.correlativeNumber.toString().padStart(3, '0')}/${doc.year}`,
+      file: {
+        url: this.fileService.buildPublicFileUrl(file.id),
+        name: file.originalName,
+        size: file.sizeBytes,
+      },
     };
   }
 }
