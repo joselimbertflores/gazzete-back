@@ -58,3 +58,13 @@ export class CreateDocumentDto {
   @IsOptional()
   relations?: DocumentRelationDto[];
 }
+
+export class SearchDocumentForRelationDto {
+  @IsString()
+  @IsNotEmpty()
+  term: string;
+
+  @IsUUID()
+  @IsOptional()
+  sourceDocumentId?: string;
+}

@@ -6,7 +6,7 @@ import { DataSource, ILike, In, Repository } from 'typeorm';
 import { DocumentRecord, DocumentRecordType, DocumentRelation, DocumentRelationType } from '../entities';
 import { StoredFile, StoredFileStatus } from 'src/modules/files/entities/stored-file.entity';
 import { FilesService } from 'src/modules/files/files.service';
-import { CreateDocumentDto, DocumentRelationDto } from '../dtos';
+import { CreateDocumentDto, DocumentRelationDto, SearchDocumentForRelationDto } from '../dtos';
 import { PaginationParamsDto } from 'src/modules/common';
 
 @Injectable()
@@ -60,7 +60,35 @@ export class DocumentService {
     });
   }
 
-  async validateDocumentRelations(typeId: number, fileId: string, relations: DocumentRelationDto[]) {
+  async searchForRelation(dto: SearchDocumentForRelationDto) {
+    const { sourceDocumentId, term } = dto;
+
+    const qb = this.documentRepository.createQueryBuilder('doc');
+
+    qb.where(`doc.title ILIKE :term OR CAST(doc.correlativeNumber AS TEXT) ILIKE :term`, { term: `%${term}%` });
+
+    if (sourceDocumentId) {
+      qb.andWhere('doc.id != :sourceId', { sourceId: sourceDocumentId });
+    }
+
+    const numeric = parseInt(term, 10);
+
+    if (!isNaN(numeric)) {
+      qb.addOrderBy(`CASE WHEN doc.correlativeNumber = :exact THEN 0 ELSE 1 END`, 'ASC');
+      qb.setParameter('exact', numeric);
+    }
+    qb.limit(10);
+    const docs = await qb.getMany();
+    return docs.map((doc) => ({
+      id: doc.id,
+      title: doc.title,
+      code: this.buildCode(doc.correlativeNumber, doc.year),
+      legalStatus: doc.legalStatus,
+    }));
+    return [];
+  }
+
+  private async validateDocumentRelations(typeId: number, fileId: string, relations: DocumentRelationDto[]) {
     const type = await this.documentTypeRepository.findOne({ where: { id: typeId } });
     if (!type) throw new BadRequestException('Invalid document type');
 
@@ -97,12 +125,16 @@ export class DocumentService {
     const { file, ...rest } = doc;
     return {
       ...rest,
-      code: `${doc.correlativeNumber.toString().padStart(3, '0')}/${doc.year}`,
+      code: this.buildCode(rest.correlativeNumber, rest.year),
       file: {
         url: this.fileService.buildPublicFileUrl(file.id),
         name: file.originalName,
         size: file.sizeBytes,
       },
     };
+  }
+
+  private buildCode(correlativeNumber: number, year: number) {
+    return `${correlativeNumber.toString().padStart(3, '0')}/${year}`;
   }
 }

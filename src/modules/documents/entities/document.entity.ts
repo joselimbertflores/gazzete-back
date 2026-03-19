@@ -12,6 +12,13 @@ import {
 
 import { DocumentRecordType } from './document-type.entity';
 
+export enum LegalStatus {
+  VALID = 'VALID',
+  ABROGATED = 'ABROGATED',
+  DEROGATED = 'DEROGATED',
+  MODIFIED = 'MODIFIED',
+}
+
 @Index(['typeId', 'correlativeNumber'], { unique: true })
 @Entity('documents')
 export class DocumentRecord {
@@ -36,6 +43,13 @@ export class DocumentRecord {
 
   @Column({ type: 'text', nullable: true })
   summary: string;
+
+  @Column({
+    type: 'enum',
+    enum: LegalStatus,
+    default: LegalStatus.VALID,
+  })
+  legalStatus: LegalStatus;
 
   @Column({ type: 'date', nullable: true })
   promulgationDate: Date;

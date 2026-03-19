@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 
-import { CreateDocumentDto } from '../dtos/document.dto';
+import { CreateDocumentDto, SearchDocumentForRelationDto } from '../dtos';
 import { DocumentService, DocumentTypeService } from '../services';
 import { PaginationParamsDto } from 'src/modules/common';
 
@@ -24,5 +24,11 @@ export class DocumentController {
   @Get()
   findAll(@Param() params: PaginationParamsDto) {
     return this.documentService.findAll(params);
+  }
+
+  @Get('search-for-relation')
+  searchForRelation(@Query() queryParams: SearchDocumentForRelationDto) {
+    console.log(queryParams);
+    return this.documentService.searchForRelation(queryParams);
   }
 }
