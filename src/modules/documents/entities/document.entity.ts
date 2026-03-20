@@ -12,18 +12,24 @@ import {
 
 import { DocumentRecordType } from './document-type.entity';
 
-export enum LegalStatus {
+export enum DocumentLegalStatus {
   VALID = 'VALID',
   ABROGATED = 'ABROGATED',
   DEROGATED = 'DEROGATED',
   MODIFIED = 'MODIFIED',
 }
 
-@Index(['typeId', 'correlativeNumber'], { unique: true })
+@Index(['typeId', 'correlativeNumber', 'numberingScope'], { unique: true })
 @Entity('documents')
 export class DocumentRecord {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column()
+  title: string;
+
+  @Column({ type: 'text', nullable: true })
+  summary?: string;
 
   @ManyToOne(() => DocumentRecordType)
   @JoinColumn({ name: 'typeId' })
@@ -32,24 +38,26 @@ export class DocumentRecord {
   @Column()
   typeId: number;
 
-  @Column()
+  @Column({ type: 'integer' })
   correlativeNumber: number;
 
-  @Column()
+  @Column({ type: 'integer' })
   year: number;
 
-  @Column()
-  title: string;
-
-  @Column({ type: 'text', nullable: true })
-  summary: string;
+  /**
+   * Campo técnico para soportar unicidad flexible:
+   * - YEARLY => "2026"
+   * - GLOBAL => "GLOBAL"
+   */
+  @Column({ type: 'varchar', length: 20 })
+  numberingScope: string;
 
   @Column({
     type: 'enum',
-    enum: LegalStatus,
-    default: LegalStatus.VALID,
+    enum: DocumentLegalStatus,
+    default: DocumentLegalStatus.VALID,
   })
-  legalStatus: LegalStatus;
+  legalStatus: DocumentLegalStatus;
 
   @Column({ type: 'date', nullable: true })
   promulgationDate: Date;
@@ -63,9 +71,6 @@ export class DocumentRecord {
   @ManyToOne(() => StoredFile)
   @JoinColumn({ name: 'fileId' })
   file: StoredFile;
-
-  @Column({ nullable: true })
-  fileId: string;
 
   @CreateDateColumn()
   createdAt: Date;

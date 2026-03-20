@@ -22,13 +22,12 @@ export class DocumentController {
   }
 
   @Get()
-  findAll(@Param() params: PaginationParamsDto) {
+  findAll(@Query() params: PaginationParamsDto) {
     return this.documentService.findAll(params);
   }
 
   @Get('search-for-relation')
   searchForRelation(@Query() queryParams: SearchDocumentForRelationDto) {
-    console.log(queryParams);
     return this.documentService.searchForRelation(queryParams);
   }
 }

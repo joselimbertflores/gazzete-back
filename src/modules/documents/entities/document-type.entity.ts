@@ -2,6 +2,11 @@ import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 
 import { DocumentRecord } from './document.entity';
 
+export enum DocumentNumberingMode {
+  YEARLY = 'YEARLY',
+  GLOBAL = 'GLOBAL',
+}
+
 @Entity('document_types')
 export class DocumentRecordType {
   @PrimaryGeneratedColumn()
@@ -10,9 +15,15 @@ export class DocumentRecordType {
   @Column({ unique: true })
   name: string;
 
-  @OneToMany(() => DocumentRecord, (document) => document.type)
-  documents: DocumentRecord[];
+  @Column({
+    type: 'enum',
+    enum: DocumentNumberingMode,
+  })
+  numberingMode: DocumentNumberingMode;
 
   @Column({ default: true })
   isActive: boolean;
+
+  @OneToMany(() => DocumentRecord, (document) => document.type)
+  documents: DocumentRecord[];
 }

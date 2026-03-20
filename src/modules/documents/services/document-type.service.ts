@@ -45,13 +45,13 @@ export class DocumentTypeService {
   async remove(id: number) {
     const documentType = await this.findByIdOrFail(id);
 
-    const linkedDocuments = await this.documentRepository.count({
-      where: { typeId: id },
-    });
+    // const linkedDocuments = await this.documentRepository.count({
+    //   where: { typeId: id },
+    // });
 
-    if (linkedDocuments > 0) {
-      throw new ConflictException('Document type cannot be removed because it is used by documents');
-    }
+    // if (linkedDocuments > 0) {
+    //   throw new ConflictException('Document type cannot be removed because it is used by documents');
+    // }
 
     await this.documentTypeRepository.remove(documentType);
 

@@ -1,12 +1,23 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { DataSource, ILike, In, Repository } from 'typeorm';
+import { Brackets, DataSource, ILike, In, QueryFailedError, Repository } from 'typeorm';
 
-import { DocumentRecord, DocumentRecordType, DocumentRelation, DocumentRelationType } from '../entities';
+import {
+  DocumentNumberingMode,
+  DocumentRecord,
+  DocumentRecordType,
+  DocumentRelation,
+  DocumentRelationType,
+} from '../entities';
+import {
+  CreateDocumentDto,
+  DocumentRelationDto,
+  FindAllDocumentsQueryDto,
+  SearchDocumentForRelationDto,
+} from '../dtos';
 import { StoredFile, StoredFileStatus } from 'src/modules/files/entities/stored-file.entity';
 import { FilesService } from 'src/modules/files/files.service';
-import { CreateDocumentDto, DocumentRelationDto, SearchDocumentForRelationDto } from '../dtos';
 import { PaginationParamsDto } from 'src/modules/common';
 
 @Injectable()
@@ -18,14 +29,44 @@ export class DocumentService {
     private dataSource: DataSource,
   ) {}
 
-  async findAll({ limit, offset, term }: PaginationParamsDto) {
-    const [documents, total] = await this.documentRepository.findAndCount({
-      ...(term && { where: { title: ILike(`%${term}%`) } }),
-      take: limit,
-      skip: offset,
-      relations: ['type', 'file'],
-      order: { publicationDate: 'DESC' },
-    });
+  async findAll({ limit, offset, term, typeId, year, publicationStatus }: FindAllDocumentsQueryDto) {
+    const queryBuilder = this.documentRepository
+      .createQueryBuilder('document')
+      .leftJoinAndSelect('document.type', 'type')
+      .leftJoinAndSelect('document.file', 'file')
+      .take(limit)
+      .skip(offset)
+      .orderBy('document.publicationDate', 'DESC')
+      .addOrderBy('document.createdAt', 'DESC');
+
+    if (term?.trim()) {
+      const normalizedTerm = term.trim();
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          if (/^\d+$/.test(normalizedTerm)) {
+            qb.where('document.correlativeNumber = :correlativeNumber', { correlativeNumber: Number(normalizedTerm) });
+          } else {
+            qb.where('document.title ILIKE :title', { title: `%${normalizedTerm}%` });
+          }
+        }),
+      );
+    }
+
+    if (typeId) {
+      queryBuilder.andWhere('document.typeId = :typeId', { typeId });
+    }
+
+    if (year) {
+      queryBuilder.andWhere('document.year = :year', { year });
+    }
+
+    if (publicationStatus) {
+      queryBuilder.andWhere('document.publicationStatus = :publicationStatus', {
+        publicationStatus,
+      });
+    }
+
+    const [documents, total] = await queryBuilder.getManyAndCount();
 
     return {
       documents: documents.map((doc) => this.toDto(doc)),
@@ -35,29 +76,36 @@ export class DocumentService {
 
   async create(dto: CreateDocumentDto) {
     const { typeId, fileId, relations = [], ...rest } = dto;
-
     const validProps = await this.validateDocumentRelations(typeId, fileId, relations);
-
-    return this.dataSource.transaction(async (manager) => {
-      const createdDocument = manager.create(DocumentRecord, {
-        type: validProps.type,
-        file: validProps.file,
-        year: rest.publicationDate.getFullYear(),
-        ...rest,
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const createdDocument = manager.create(DocumentRecord, {
+          type: validProps.type,
+          file: validProps.file,
+          numberingScope: this.buildNumberingScope(validProps.type, rest.year),
+          ...rest,
+        });
+        await manager.save(createdDocument);
+        if (relations.length) {
+          await manager.save(
+            validProps.relations.map(({ targetDocument, relationType }) =>
+              manager.create(DocumentRelation, {
+                sourceDocument: createdDocument,
+                targetDocument,
+                relationType,
+              }),
+            ),
+          );
+        }
+        await manager.update(StoredFile, dto.fileId, { status: StoredFileStatus.ACTIVE });
+        return createdDocument;
       });
-
-      await manager.save(createdDocument);
-
-      if (relations.length) {
-        await manager.save(
-          validProps.relations.map(({ targetDocument, relationType }) =>
-            manager.create(DocumentRelation, { sourceDocument: createdDocument, targetDocument, relationType }),
-          ),
-        );
+    } catch (error: unknown) {
+      if (error instanceof QueryFailedError && error['code'] === '23505') {
+        throw new ConflictException('Ya existe un documento con ese tipo, correlativo y alcance de numeración.');
       }
-      await manager.update(StoredFile, dto.fileId, { status: StoredFileStatus.ACTIVE });
-      return createdDocument;
-    });
+      throw new InternalServerErrorException('No se pudo crear el documento.');
+    }
   }
 
   async searchForRelation(dto: SearchDocumentForRelationDto) {
@@ -136,5 +184,9 @@ export class DocumentService {
 
   private buildCode(correlativeNumber: number, year: number) {
     return `${correlativeNumber.toString().padStart(3, '0')}/${year}`;
+  }
+
+  private buildNumberingScope(type: DocumentRecordType, year: number): string {
+    return type.numberingMode === DocumentNumberingMode.GLOBAL ? 'GLOBAL' : String(year);
   }
 }

@@ -9,8 +9,12 @@ import {
   IsNotEmpty,
   IsOptional,
   ValidateNested,
+  IsNumber,
+  Min,
+  Max,
 } from 'class-validator';
-import { DocumentRelationType } from '../entities';
+import { DocumentLegalStatus, DocumentRelationType } from '../entities';
+import { PaginationParamsDto } from 'src/modules/common';
 
 export class DocumentRelationDto {
   @IsEnum(DocumentRelationType)
@@ -35,6 +39,12 @@ export class CreateDocumentDto {
   @IsString()
   @IsNotEmpty()
   summary: string;
+
+  @IsNumber()
+  @Min(2000)
+  @Max(new Date().getFullYear())
+  @Type(() => Number)
+  year: number;
 
   @IsDate()
   @Type(() => Date)
@@ -67,4 +77,21 @@ export class SearchDocumentForRelationDto {
   @IsUUID()
   @IsOptional()
   sourceDocumentId?: string;
+}
+
+export class FindAllDocumentsQueryDto extends PaginationParamsDto {
+  @IsOptional()
+  @IsUUID()
+  typeId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1900)
+  @Max(9999)
+  year?: number;
+
+  @IsOptional()
+  @IsEnum(DocumentLegalStatus)
+  publicationStatus?: DocumentLegalStatus;
 }
