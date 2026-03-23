@@ -1,22 +1,29 @@
 import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
 import {
+  Index,
   Column,
   Entity,
-  Index,
-  JoinColumn,
   ManyToOne,
+  JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
   PrimaryGeneratedColumn,
+  OneToMany,
 } from 'typeorm';
 
 import { DocumentRecordType } from './document-type.entity';
+import { DocumentRelation } from './document-relation.entity';
 
 export enum DocumentLegalStatus {
   VALID = 'VALID',
   ABROGATED = 'ABROGATED',
   DEROGATED = 'DEROGATED',
   MODIFIED = 'MODIFIED',
+}
+
+export enum DocumentRecordStatus {
+  PUBLISHED = 'PUBLISHED',
+  DISABLED = 'DISABLED',
 }
 
 @Index(['typeId', 'correlativeNumber', 'numberingScope'], { unique: true })
@@ -54,6 +61,13 @@ export class DocumentRecord {
 
   @Column({
     type: 'enum',
+    enum: DocumentRecordStatus,
+    default: DocumentRecordStatus.PUBLISHED,
+  })
+  status: DocumentRecordStatus;
+
+  @Column({
+    type: 'enum',
     enum: DocumentLegalStatus,
     default: DocumentLegalStatus.VALID,
   })
@@ -68,13 +82,16 @@ export class DocumentRecord {
   @Column({ type: 'date', nullable: true })
   validUntil: Date;
 
-  @ManyToOne(() => StoredFile)
-  @JoinColumn({ name: 'fileId' })
-  file: StoredFile;
-
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @ManyToOne(() => StoredFile)
+  @JoinColumn({ name: 'fileId' })
+  file: StoredFile;
+
+  @OneToMany(() => DocumentRelation, (relation) => relation.sourceDocument)
+  outgoingRelations: DocumentRelation[];
 }

@@ -28,6 +28,6 @@ export class DocumentController {
 
   @Get('search-for-relation')
   searchForRelation(@Query() queryParams: SearchDocumentForRelationDto) {
-    return this.documentService.searchForRelation(queryParams);
+    return this.documentService.searchRelationCandidates(queryParams);
   }
 }

@@ -66,7 +66,7 @@ export class CreateDocumentDto {
   @ValidateNested({ each: true })
   @Type(() => DocumentRelationDto)
   @IsOptional()
-  relations?: DocumentRelationDto[];
+  relationReferences?: DocumentRelationDto[];
 }
 
 export class SearchDocumentForRelationDto {

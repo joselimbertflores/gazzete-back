@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 import { DocumentRecord } from './document.entity';
 
@@ -11,12 +11,16 @@ export enum DocumentRelationType {
   REFERENCES = 'REFERENCES',
 }
 
+@Index(['targetDocumentId'], { unique: true })
 @Entity('document_relations')
 export class DocumentRelation {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => DocumentRecord)
+  @ManyToOne(() => DocumentRecord, (document) => document.outgoingRelations, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'sourceDocumentId' })
   sourceDocument: DocumentRecord;
 
@@ -38,9 +42,6 @@ export class DocumentRelation {
 
   @Column({ type: 'text', nullable: true })
   description: string;
-
-  @Column({ type: 'int', nullable: true })
-  position: number;
 
   @CreateDateColumn()
   createdAt: Date;
