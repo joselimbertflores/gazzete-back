@@ -2,12 +2,13 @@ import {
   Injectable,
   HttpException,
   ConflictException,
+  NotFoundException,
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Brackets, DataSource, In, QueryFailedError, Repository } from 'typeorm';
+import { Brackets, DataSource, EntityManager, In, QueryFailedError, Repository } from 'typeorm';
 
 import {
   DocumentRecord,
@@ -22,6 +23,7 @@ import {
   DocumentRelationDto,
   FindAllDocumentsQueryDto,
   SearchDocumentForRelationDto,
+  UpdateDocumentDto,
 } from '../dtos';
 import { StoredFile, StoredFileStatus } from 'src/modules/files/entities/stored-file.entity';
 import { FilesService } from 'src/modules/files/files.service';
@@ -30,6 +32,7 @@ import { FilesService } from 'src/modules/files/files.service';
 export class DocumentService {
   constructor(
     @InjectRepository(DocumentRecordType) private documentTypeRepository: Repository<DocumentRecordType>,
+    @InjectRepository(DocumentRelation) private docRelationRepository: Repository<DocumentRelation>,
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
     private fileService: FilesService,
     private dataSource: DataSource,
@@ -42,8 +45,8 @@ export class DocumentService {
       .leftJoinAndSelect('document.file', 'file')
       .take(limit)
       .skip(offset)
-      .orderBy('document.publicationDate', 'DESC')
-      .addOrderBy('document.createdAt', 'DESC');
+      .orderBy('document.year', 'DESC')
+      .addOrderBy('document.correlativeNumber', 'DESC');
 
     if (term?.trim()) {
       const normalizedTerm = term.trim();
@@ -81,46 +84,82 @@ export class DocumentService {
   }
 
   async create(dto: CreateDocumentDto) {
-    const { typeId, fileId, relationReferences = [], ...rest } = dto;
-    const { type, file, relations } = await this.validateDtoReferences(typeId, fileId, relationReferences);
+    const { typeId, fileId, relations = [], ...rest } = dto;
+
+    const type = await this.documentTypeRepository.findOne({ where: { id: typeId } });
+    if (!type) throw new BadRequestException('Invalid document type');
+
+    const file = await this.fileService.findFileOrFail(fileId);
+    if (file.status !== StoredFileStatus.PENDING) {
+      throw new BadRequestException('Invalid selected file');
+    }
+
+    await this.validateRelations(relations);
+
     try {
       return await this.dataSource.transaction(async (manager) => {
-        // Create document
         const createdDocument = manager.create(DocumentRecord, {
+          ...rest,
           type,
           file,
           numberingScope: this.buildNumberingScope(type, rest.year),
-          ...rest,
         });
+
         await manager.save(createdDocument);
 
-        if (relationReferences.length) {
-          // Create relations
-          const relationModels = relations.map(({ targetDocument, relationType }) =>
-            manager.create(DocumentRelation, { sourceDocument: createdDocument, targetDocument, relationType }),
-          );
-          await manager.save(relationModels);
+        await this.syncRelations(manager, createdDocument.id, relations);
 
-          // Update status of target documents
-          for (const { targetDocument, relationType } of relations) {
-            const legalStatus = this.resolveTargetLegalStatus(relationType);
-            if (!legalStatus) continue;
-            await manager.update(DocumentRecord, { id: targetDocument.id }, { legalStatus });
-          }
-        }
-
-        // Activate stored file
-        await manager.update(StoredFile, dto.fileId, { status: StoredFileStatus.ACTIVE });
+        await manager.update(StoredFile, fileId, { status: StoredFileStatus.ACTIVE });
 
         return createdDocument;
       });
     } catch (error: unknown) {
       if (error instanceof HttpException) throw error;
+
       if (error instanceof QueryFailedError && error['code'] === '23505') {
         throw new ConflictException('Correlative number already exists');
       }
+
       throw new InternalServerErrorException('Error creating document');
     }
+  }
+
+  async update(id: string, dto: UpdateDocumentDto) {
+    const { relations = [], typeId, fileId, ...rest } = dto;
+
+    await this.validateRelations(relations);
+
+    if (relations.some((r) => r.targetDocumentId === id)) {
+      throw new BadRequestException('A document cannot be related to itself');
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const documentRepo = manager.getRepository(DocumentRecord);
+
+      const document = await documentRepo.findOne({ where: { id } });
+      if (!document) {
+        throw new NotFoundException('Document not found');
+      }
+
+      if (typeId) {
+        const type = await manager.getRepository(DocumentRecordType).findOne({ where: { id: typeId } });
+        if (!type) throw new BadRequestException('Invalid document type');
+        document.type = type;
+        document.numberingScope = this.buildNumberingScope(type, document.year);
+      }
+
+      // if (fileId) {
+
+      // }
+
+      // 1. actualizar datos básicos
+      const updated = await documentRepo.update(id, { ...rest });
+
+      // 2. sincronizar relaciones
+      await this.syncRelations(manager, id, relations);
+
+      return updated;
+    });
   }
 
   async searchRelationCandidates({ term, sourceDocumentId }: SearchDocumentForRelationDto) {
@@ -174,48 +213,30 @@ export class DocumentService {
     }));
   }
 
-  private async validateDtoReferences(typeId: number, fileId: string, relationReferences: DocumentRelationDto[]) {
-    const type = await this.documentTypeRepository.findOne({ where: { id: typeId } });
-    if (!type) throw new BadRequestException('Invalid document type');
-
-    const file = await this.fileService.findFileOrFail(fileId);
-    if (file.status !== StoredFileStatus.PENDING) throw new BadRequestException('Invalid selected file');
-
-    if (relationReferences.length === 0) return { type, file, relations: [] };
-
-    const seenTargetIds = new Set<string>();
-
-    for (const relation of relationReferences) {
-      if (seenTargetIds.has(relation.targetDocumentId)) {
-        throw new BadRequestException('A target document cannot be selected more than once.');
-      }
-      seenTargetIds.add(relation.targetDocumentId);
-    }
-
-    const ids = relationReferences.map(({ targetDocumentId }) => targetDocumentId);
-
-    const documents = await this.documentRepository.find({
-      where: { id: In(ids) },
-      select: {
-        id: true,
-        title: true,
-        summary: true,
-        legalStatus: true,
+  async findOutgoingRelationsByDocumentId(id: string) {
+    const relations = await this.docRelationRepository.find({
+      where: {
+        sourceDocumentId: id,
+      },
+      relations: {
+        targetDocument: {
+          type: true,
+        },
+      },
+      order: {
+        createdAt: 'DESC',
       },
     });
-
-    if (documents.length !== ids.length) {
-      throw new BadRequestException('Invalid target document. Some documents do not exist.');
-    }
-
-    const documentsMap = new Map(documents.map((doc) => [doc.id, doc]));
-
-    const relations = relationReferences.map(({ type, targetDocumentId }) => {
-      const targetDocument = documentsMap.get(targetDocumentId);
-      if (!targetDocument) throw new BadRequestException(`Target ${targetDocumentId} does not exist.`);
-      return { targetDocument, relationType: type };
-    });
-    return { type, file, relations };
+    return relations.map((rel) => ({
+      id: rel.id,
+      relationType: rel.relationType,
+      targetDocument: {
+        id: rel.targetDocument.id,
+        title: rel.targetDocument.title,
+        type: rel.targetDocument.type.name,
+        code: this.buildCode(rel.targetDocument.correlativeNumber, rel.targetDocument.year),
+      },
+    }));
   }
 
   private toDto(doc: DocumentRecord) {
@@ -237,6 +258,78 @@ export class DocumentService {
 
   private buildNumberingScope(type: DocumentRecordType, year: number): string {
     return type.numberingMode === DocumentNumberingMode.GLOBAL ? 'GLOBAL' : String(year);
+  }
+
+  private async syncRelations(manager: EntityManager, sourceId: string, incomingRelations: DocumentRelationDto[]) {
+    const relationRepo = manager.getRepository(DocumentRelation);
+    const documentRepo = manager.getRepository(DocumentRecord);
+
+    const existingRelations = await relationRepo.find({ where: { sourceDocumentId: sourceId } });
+
+    const existingMap = new Map(existingRelations.map((r) => [r.targetDocumentId, r]));
+    const incomingMap = new Map(incomingRelations.map((r) => [r.targetDocumentId, r]));
+
+    const toDelete = existingRelations.filter((r) => !incomingMap.has(r.targetDocumentId));
+
+    const toCreate = incomingRelations.filter((r) => !existingMap.has(r.targetDocumentId));
+
+    const toUpdate = existingRelations.filter((r) => {
+      const incoming = incomingMap.get(r.targetDocumentId);
+      return incoming && incoming.type !== r.relationType;
+    });
+
+    // deletes
+    for (const rel of toDelete) {
+      await relationRepo.delete(rel.id);
+      await documentRepo.update(rel.targetDocumentId, { legalStatus: DocumentLegalStatus.VALID });
+    }
+
+    // updates
+    for (const rel of toUpdate) {
+      const incoming = incomingMap.get(rel.targetDocumentId);
+      if (!incoming) continue;
+      await relationRepo.update(rel.id, { relationType: incoming.type });
+      await this.applyRelationEffect(manager, rel.targetDocumentId, incoming.type);
+    }
+
+    // creates
+    for (const rel of toCreate) {
+      const newRelation = relationRepo.create({
+        sourceDocumentId: sourceId,
+        targetDocumentId: rel.targetDocumentId,
+        relationType: rel.type,
+      });
+      await relationRepo.save(newRelation);
+      await this.applyRelationEffect(manager, rel.targetDocumentId, rel.type);
+    }
+  }
+
+  private async validateRelations(relations: DocumentRelationDto[]) {
+    if (!relations.length) return;
+
+    const seen = new Set<string>();
+
+    for (const rel of relations) {
+      if (seen.has(rel.targetDocumentId)) {
+        throw new BadRequestException('A target document cannot be selected more than once.');
+      }
+      seen.add(rel.targetDocumentId);
+    }
+
+    const ids = relations.map((r) => r.targetDocumentId);
+
+    const count = await this.documentRepository.count({ where: { id: In(ids) } });
+
+    if (count !== ids.length) {
+      throw new BadRequestException('Some target documents do not exist.');
+    }
+  }
+
+  private async applyRelationEffect(manager: EntityManager, targetId: string, type: DocumentRelationType) {
+    const status = this.resolveTargetLegalStatus(type);
+    if (status) {
+      await manager.update(DocumentRecord, { id: targetId }, { legalStatus: status });
+    }
   }
 
   private resolveTargetLegalStatus(relationType: DocumentRelationType) {

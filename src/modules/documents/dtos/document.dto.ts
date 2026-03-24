@@ -13,6 +13,8 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+
 import { DocumentLegalStatus, DocumentRelationType } from '../entities';
 import { PaginationParamsDto } from 'src/modules/common';
 
@@ -66,8 +68,10 @@ export class CreateDocumentDto {
   @ValidateNested({ each: true })
   @Type(() => DocumentRelationDto)
   @IsOptional()
-  relationReferences?: DocumentRelationDto[];
+  relations?: DocumentRelationDto[];
 }
+
+export class UpdateDocumentDto extends PartialType(CreateDocumentDto) {}
 
 export class SearchDocumentForRelationDto {
   @IsString()

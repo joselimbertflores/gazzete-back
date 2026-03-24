@@ -17,6 +17,10 @@ export class DocumentRelation {
   @PrimaryGeneratedColumn()
   id: number;
 
+  //  Un documento puede tener MUCHAS relaciones salientes
+  //  A → B
+  //  A → C
+  //  A → D
   @ManyToOne(() => DocumentRecord, (document) => document.outgoingRelations, {
     nullable: false,
     onDelete: 'CASCADE',
