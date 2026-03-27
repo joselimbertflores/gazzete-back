@@ -21,14 +21,20 @@ import {
 import {
   UpdateDocumentDto,
   CreateDocumentDto,
-  DocumentRelationDto,
   FindAllDocumentsQueryDto,
   SearchDocumentForRelationDto,
+  ChangeDocumentStatusDto,
 } from '../dtos';
 import { FilesService } from 'src/modules/files/files.service';
 
 @Injectable()
 export class DocumentService {
+  private readonly relationToStatusMap: Partial<Record<DocumentRelationType, DocumentLegalStatus>> = {
+    [DocumentRelationType.MODIFIES]: DocumentLegalStatus.MODIFIED,
+    [DocumentRelationType.ABROGATES]: DocumentLegalStatus.ABROGATED,
+    [DocumentRelationType.DEROGATES]: DocumentLegalStatus.DEROGATED,
+  };
+
   constructor(
     @InjectRepository(DocumentRelation) private docRelationRepository: Repository<DocumentRelation>,
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
@@ -36,7 +42,7 @@ export class DocumentService {
     private dataSource: DataSource,
   ) {}
 
-  async findAll({ limit, offset, term, typeId, year, publicationStatus }: FindAllDocumentsQueryDto) {
+  async findAll({ limit, offset, term, typeId, year, legalStatus }: FindAllDocumentsQueryDto) {
     const queryBuilder = this.documentRepository
       .createQueryBuilder('document')
       .leftJoinAndSelect('document.type', 'type')
@@ -67,9 +73,9 @@ export class DocumentService {
       queryBuilder.andWhere('document.year = :year', { year });
     }
 
-    if (publicationStatus) {
-      queryBuilder.andWhere('document.publicationStatus = :publicationStatus', {
-        publicationStatus,
+    if (legalStatus) {
+      queryBuilder.andWhere('document.legalStatus = :legalStatus', {
+        legalStatus,
       });
     }
 
@@ -82,9 +88,9 @@ export class DocumentService {
   }
 
   async create(dto: CreateDocumentDto) {
-    const { typeId, fileId, relations = [], ...rest } = dto;
+    const { typeId, fileId, ...rest } = dto;
     try {
-      return this.dataSource.transaction(async (manager) => {
+      const document = await this.dataSource.transaction(async (manager) => {
         const type = await manager.findOneBy(DocumentRecordType, { id: typeId });
         if (!type) throw new BadRequestException('Invalid document type');
 
@@ -103,21 +109,21 @@ export class DocumentService {
 
         return saved;
       });
-    } catch (error) {
-      if (error instanceof HttpException) throw error;
-      if (error instanceof QueryFailedError && error['code'] === '23505') {
-        throw new ConflictException('Correlative number already exists');
-      }
-      throw new InternalServerErrorException('Error creating document');
+      return this.toDto(document);
+    } catch (error: unknown) {
+      this.handleDocumentErrors(error);
     }
   }
 
   async update(id: string, dto: UpdateDocumentDto) {
-    const { typeId, fileId, relations = [], ...rest } = dto;
+    const { typeId, fileId, ...rest } = dto;
 
     try {
-      return this.dataSource.transaction(async (manager) => {
-        const document = await manager.findOne(DocumentRecord, { where: { id } });
+      const document = await this.dataSource.transaction(async (manager) => {
+        const document = await manager.findOne(DocumentRecord, {
+          where: { id },
+          relations: { file: true, type: true },
+        });
         if (!document) throw new NotFoundException('Document not found');
 
         if (typeId) {
@@ -140,9 +146,77 @@ export class DocumentService {
         Object.assign(document, rest);
         return await manager.save(document);
       });
-    } catch (error) {
-      console.log('test');
+      return this.toDto(document);
+    } catch (error: unknown) {
+      this.handleDocumentErrors(error);
     }
+  }
+
+  async changeStatus(targetDocumentId: string, dto: ChangeDocumentStatusDto) {
+    const { sourceDocumentId, relationType, description } = dto;
+
+    if (targetDocumentId === sourceDocumentId) {
+      throw new BadRequestException('Un documento no puede afectarse a sí mismo.');
+    }
+
+    const [target, source] = await Promise.all([
+      this.documentRepository.findOne({ where: { id: targetDocumentId } }),
+      this.documentRepository.findOne({ where: { id: sourceDocumentId } }),
+    ]);
+
+    if (!target || !source) throw new NotFoundException('Documento no encontrado.');
+
+    if (target.legalStatus !== DocumentLegalStatus.VALID) {
+      throw new BadRequestException('El documento a modificar debe estar vigente.');
+    }
+
+    if (source.legalStatus !== DocumentLegalStatus.VALID) {
+      throw new BadRequestException('El documento que provoca el cambio debe estar vigente.');
+    }
+
+    await this.docRelationRepository.delete({ targetDocumentId });
+
+    const relation = this.docRelationRepository.create({
+      sourceDocumentId,
+      targetDocumentId,
+      relationType,
+      description,
+    });
+
+    await this.docRelationRepository.save(relation);
+
+    const newStatus = this.mapRelationToStatus(relationType);
+
+    if (newStatus) {
+      await this.documentRepository.update(targetDocumentId, { legalStatus: newStatus });
+    }
+
+    return {
+      ok: true,
+      message: 'Estado actualizado correctamente.',
+      newStatus: newStatus,
+    };
+  }
+
+  async findRelationByTarget(targetId: string) {
+    const relation = await this.docRelationRepository.findOne({
+      where: { targetDocumentId: targetId },
+      relations: {
+        sourceDocument: true,
+      },
+    });
+
+    if (!relation) return null;
+
+    return {
+      type: relation.relationType,
+      description: relation.description,
+      source: {
+        id: relation.sourceDocument.id,
+        title: relation.sourceDocument.title,
+        code: this.buildCode(relation.sourceDocument.correlativeNumber, relation.sourceDocument.year),
+      },
+    };
   }
 
   async searchRelationCandidates({ term, sourceDocumentId }: SearchDocumentForRelationDto) {
@@ -196,30 +270,16 @@ export class DocumentService {
     }));
   }
 
-  async findOutgoingRelationsByDocumentId(id: string) {
-    const relations = await this.docRelationRepository.find({
-      where: {
-        sourceDocumentId: id,
-      },
-      relations: {
-        targetDocument: {
-          type: true,
-        },
-      },
-      order: {
-        createdAt: 'DESC',
-      },
-    });
-    return relations.map((rel) => ({
-      id: rel.id,
-      relationType: rel.relationType,
-      targetDocument: {
-        id: rel.targetDocument.id,
-        title: rel.targetDocument.title,
-        type: rel.targetDocument.type.name,
-        code: this.buildCode(rel.targetDocument.correlativeNumber, rel.targetDocument.year),
-      },
-    }));
+  private buildCode(correlativeNumber: number, year: number) {
+    return `${correlativeNumber.toString().padStart(3, '0')}/${year}`;
+  }
+
+  private buildNumberingScope(type: DocumentRecordType, year: number): string {
+    return type.numberingMode === DocumentNumberingMode.GLOBAL ? 'GLOBAL' : String(year);
+  }
+
+  private mapRelationToStatus(type: DocumentRelationType): DocumentLegalStatus | null {
+    return this.relationToStatusMap[type] ?? null;
   }
 
   private toDto(doc: DocumentRecord) {
@@ -235,31 +295,11 @@ export class DocumentService {
     };
   }
 
-  private buildCode(correlativeNumber: number, year: number) {
-    return `${correlativeNumber.toString().padStart(3, '0')}/${year}`;
-  }
-
-  private buildNumberingScope(type: DocumentRecordType, year: number): string {
-    return type.numberingMode === DocumentNumberingMode.GLOBAL ? 'GLOBAL' : String(year);
-  }
-
-
-  private async recomputeLegalStatus(manager: EntityManager, targetId: string) {
-    const relations = await manager.find(DocumentRelation, { where: { targetDocumentId: targetId } });
-
-    const types = relations.map((r) => r.relationType);
-
-    let status = DocumentLegalStatus.VALID;
-
-    // * ABROGATED > DEROGATED > MODIFIED > VALID
-
-    if (types.includes(DocumentRelationType.ABROGATES)) {
-      status = DocumentLegalStatus.ABROGATED;
-    } else if (types.includes(DocumentRelationType.DEROGATES)) {
-      status = DocumentLegalStatus.DEROGATED;
-    } else if (types.includes(DocumentRelationType.MODIFIES)) {
-      status = DocumentLegalStatus.MODIFIED;
+  private handleDocumentErrors(error: unknown) {
+    if (error instanceof HttpException) throw error;
+    if (error instanceof QueryFailedError && error['code'] === '23505') {
+      throw new ConflictException('El numero correlativo ingresado ya existe.');
     }
-    await manager.update(DocumentRecord, { id: targetId }, { legalStatus: status });
+    throw new InternalServerErrorException('Error creating document');
   }
 }

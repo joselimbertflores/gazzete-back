@@ -1,6 +1,12 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 
-import { CreateDocumentDto, SearchDocumentForRelationDto, UpdateDocumentDto } from '../dtos';
+import {
+  ChangeDocumentStatusDto,
+  CreateDocumentDto,
+  FindAllDocumentsQueryDto,
+  SearchDocumentForRelationDto,
+  UpdateDocumentDto,
+} from '../dtos';
 import { DocumentService, DocumentTypeService } from '../services';
 import { PaginationParamsDto } from 'src/modules/common';
 
@@ -27,7 +33,8 @@ export class DocumentController {
   }
 
   @Get()
-  findAll(@Query() params: PaginationParamsDto) {
+  findAll(@Query() params: FindAllDocumentsQueryDto) {
+    console.log(params);
     return this.documentService.findAll(params);
   }
 
@@ -36,8 +43,13 @@ export class DocumentController {
     return this.documentService.searchRelationCandidates(queryParams);
   }
 
-  @Get(':id/relations')
-  findRelations(@Param('id') id: string) {
-    return this.documentService.findOutgoingRelationsByDocumentId(id);
+  @Patch(':id/status')
+  changeStatus(@Param('id') id: string, @Body() dto: ChangeDocumentStatusDto) {
+    return this.documentService.changeStatus(id, dto);
+  }
+
+  @Get(':id/relation')
+  findRelationByTarget(@Param('id') id: string) {
+    return this.documentService.findRelationByTarget(id);
   }
 }

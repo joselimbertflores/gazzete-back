@@ -17,14 +17,6 @@ import { PartialType } from '@nestjs/mapped-types';
 
 import { DocumentLegalStatus, DocumentRelationType } from '../entities';
 import { PaginationParamsDto } from 'src/modules/common';
-
-export class DocumentRelationDto {
-  @IsEnum(DocumentRelationType)
-  type: DocumentRelationType;
-
-  @IsUUID()
-  targetDocumentId: string;
-}
 export class CreateDocumentDto {
   @IsInt()
   @Type(() => Number)
@@ -63,12 +55,6 @@ export class CreateDocumentDto {
 
   @IsUUID()
   fileId: string;
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => DocumentRelationDto)
-  @IsOptional()
-  relations?: DocumentRelationDto[];
 }
 
 export class UpdateDocumentDto extends PartialType(CreateDocumentDto) {}
@@ -85,7 +71,8 @@ export class SearchDocumentForRelationDto {
 
 export class FindAllDocumentsQueryDto extends PaginationParamsDto {
   @IsOptional()
-  @IsUUID()
+  @IsNumber()
+  @Type(() => Number)
   typeId?: string;
 
   @IsOptional()
@@ -97,5 +84,18 @@ export class FindAllDocumentsQueryDto extends PaginationParamsDto {
 
   @IsOptional()
   @IsEnum(DocumentLegalStatus)
-  publicationStatus?: DocumentLegalStatus;
+  legalStatus?: DocumentLegalStatus;
+}
+
+export class ChangeDocumentStatusDto {
+  @IsUUID()
+  sourceDocumentId: string;
+
+  @IsEnum(DocumentRelationType)
+  relationType: DocumentRelationType;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  description?: string;
 }

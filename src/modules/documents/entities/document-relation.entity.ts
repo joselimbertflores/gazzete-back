@@ -6,9 +6,6 @@ export enum DocumentRelationType {
   MODIFIES = 'MODIFIES',
   ABROGATES = 'ABROGATES',
   DEROGATES = 'DEROGATES',
-  RECTIFIES = 'RECTIFIES',
-  REGULATES = 'REGULATES',
-  REFERENCES = 'REFERENCES',
 }
 
 @Index(['targetDocumentId'], { unique: true })
@@ -49,4 +46,5 @@ export class DocumentRelation {
 
   @CreateDateColumn()
   createdAt: Date;
+  
 }

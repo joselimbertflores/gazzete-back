@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsBoolean, IsArray, IsEnum, ArrayMinSize } from 'class-validator';
+import { UserRole } from '../entities';
 
 export class CreateUserDto {
   @IsNotEmpty()
@@ -15,4 +16,12 @@ export class CreateUserDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+}
+
+export class UpdateUserDto {
+  @IsOptional()
+  @IsArray()
+  @IsEnum(UserRole, { each: true })
+  @ArrayMinSize(1)
+  roles: UserRole[];
 }
