@@ -17,6 +17,7 @@ import { PartialType } from '@nestjs/mapped-types';
 
 import { DocumentLegalStatus, DocumentRelationType } from '../entities';
 import { PaginationParamsDto } from 'src/modules/common';
+import { IsAfterOrEqual, IsBeforeOrEqual } from '../validators';
 export class CreateDocumentDto {
   @IsInt()
   @Type(() => Number)
@@ -42,10 +43,16 @@ export class CreateDocumentDto {
 
   @IsDate()
   @Type(() => Date)
+  @IsBeforeOrEqual('publicationDate', {
+    message: 'La fecha de promulgación no puede ser posterior a la publicación',
+  })
   promulgationDate: Date;
 
   @IsDate()
   @Type(() => Date)
+  @IsAfterOrEqual('publicationDate', {
+    message: 'La vigencia no puede ser anterior a la publicación',
+  })
   publicationDate: Date;
 
   @IsDate()
