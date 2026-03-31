@@ -69,6 +69,10 @@ export class FilesService {
   async getFileStream(id: string) {
     const file = await this.findFileOrFail(id);
 
+    if (file.status !== StoredFileStatus.ACTIVE) {
+      throw new NotFoundException();
+    }
+
     const finalPath = join(this.BASE_UPLOAD_PATH, file.storageKey);
 
     if (!existsSync(finalPath)) {

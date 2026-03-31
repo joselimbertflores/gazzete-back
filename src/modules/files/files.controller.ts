@@ -54,8 +54,9 @@ export class FilesController {
     const disposition = isDownload ? 'attachment' : 'inline';
 
     res.setHeader('Content-Type', file.mimeType);
-    res.setHeader('Content-Disposition', `${disposition}; filename="${file.originalName}"`);
+    res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
     res.setHeader('Content-Length', file.sizeBytes);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
 
     return new StreamableFile(stream);
   }

@@ -59,7 +59,7 @@ export class DocumentService {
           if (/^\d+$/.test(normalizedTerm)) {
             qb.where('document.correlativeNumber = :correlativeNumber', { correlativeNumber: Number(normalizedTerm) });
           } else {
-            qb.where('document.title ILIKE :title', { title: `%${normalizedTerm}%` });
+            qb.where('document.summary ILIKE :summary', { summary: `%${normalizedTerm}%` });
           }
         }),
       );
@@ -213,7 +213,6 @@ export class DocumentService {
       description: relation.description,
       source: {
         id: relation.sourceDocument.id,
-        title: relation.sourceDocument.title,
         code: this.buildCode(relation.sourceDocument.correlativeNumber, relation.sourceDocument.year),
       },
     };
@@ -227,7 +226,7 @@ export class DocumentService {
       .leftJoinAndSelect('document.type', 'type')
       .select([
         'document.id',
-        'document.title',
+        'document.summary',
         'document.correlativeNumber',
         'document.year',
         'document.publicationDate',
@@ -248,7 +247,7 @@ export class DocumentService {
         if (/^\d+$/.test(normalizedTerm)) {
           qb.where('document.correlativeNumber = :correlativeNumber', { correlativeNumber: Number(normalizedTerm) });
         } else {
-          qb.where('document.title ILIKE :title', { title: `%${normalizedTerm}%` });
+          qb.where('document.summary ILIKE :summary', { summary: `%${normalizedTerm}%` });
         }
       }),
     );
@@ -257,7 +256,6 @@ export class DocumentService {
 
     return documents.map((doc) => ({
       id: doc.id,
-      title: doc.title,
       correlativeNumber: doc.correlativeNumber,
       year: doc.year,
       code: this.buildCode(doc.correlativeNumber, doc.year),

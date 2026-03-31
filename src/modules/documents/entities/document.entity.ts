@@ -4,11 +4,11 @@ import {
   Column,
   Entity,
   ManyToOne,
+  OneToMany,
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
   PrimaryGeneratedColumn,
-  OneToMany,
 } from 'typeorm';
 
 import { DocumentRecordType } from './document-type.entity';
@@ -32,11 +32,8 @@ export class DocumentRecord {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  title: string;
-
-  @Column({ type: 'text', nullable: true })
-  summary?: string;
+  @Column({ type: 'text'})
+  summary: string;
 
   @ManyToOne(() => DocumentRecordType)
   @JoinColumn({ name: 'typeId' })
@@ -92,7 +89,9 @@ export class DocumentRecord {
   @JoinColumn({ name: 'fileId' })
   file: StoredFile;
 
+  @Column({ nullable: true })
+  fileId: string;
+
   @OneToMany(() => DocumentRelation, (relation) => relation.sourceDocument)
   outgoingRelations: DocumentRelation[];
-
 }

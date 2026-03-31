@@ -29,10 +29,6 @@ export class CreateDocumentDto {
 
   @IsString()
   @IsNotEmpty()
-  title: string;
-
-  @IsString()
-  @IsNotEmpty()
   summary: string;
 
   @IsNumber()
