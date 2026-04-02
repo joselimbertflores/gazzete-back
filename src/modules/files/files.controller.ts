@@ -16,6 +16,7 @@ import type { Response } from 'express';
 import { CustomFileTypeValidator } from './validators/custom-file-type.validator';
 import { FilesService } from './files.service';
 import { UploadDocumentQueryDto } from './dtos';
+import { Public } from '../auth/decorators';
 
 // @Public()
 @Controller('files')
@@ -42,6 +43,7 @@ export class FilesController {
     return this.filesService.uploadDocument(file, year);
   }
 
+  @Public()
   @Get(':id')
   async serveFile(
     @Res({ passthrough: true }) res: Response,

@@ -47,11 +47,13 @@ export class DocumentPublicService {
 
     queryBuilder.leftJoinAndSelect('doc.type', 'type');
 
-    queryBuilder.orderBy('doc.publicationDate', 'DESC').addOrderBy('doc.correlativeNumber', 'DESC');
+    queryBuilder.orderBy('doc.correlativeNumber', 'DESC');
 
     queryBuilder.skip(offset).take(limit);
 
     const [documents, total] = await queryBuilder.getManyAndCount();
+
+    console.log({ limit, offset });
 
     return {
       documents: documents.map((doc) => ({
