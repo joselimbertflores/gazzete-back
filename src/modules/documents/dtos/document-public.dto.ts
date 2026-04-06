@@ -8,7 +8,7 @@ export class FindPublicDocumentsDto extends PaginationParamsDto {
   @IsOptional()
   @Transform(({ value }) => Number(value))
   @IsInt()
-  typeId?: number;
+  type?: number;
 
   @IsOptional()
   @Transform(({ value }) => Number(value))

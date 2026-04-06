@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -14,7 +14,7 @@ export class DocumentPublicService {
   ) {}
 
   async findAll(query: FindPublicDocumentsDto) {
-    const { term, typeId, year, legalStatus, offset, limit } = query;
+    const { term, type, year, legalStatus, offset, limit } = query;
 
     const queryBuilder = this.documentRepository.createQueryBuilder('doc');
 
@@ -33,8 +33,8 @@ export class DocumentPublicService {
       }
     }
 
-    if (typeId) {
-      queryBuilder.andWhere('doc.typeId = :typeId', { typeId });
+    if (type) {
+      queryBuilder.andWhere('doc.typeId = :typeId', { typeId: type });
     }
 
     if (year) {
@@ -53,8 +53,6 @@ export class DocumentPublicService {
 
     const [documents, total] = await queryBuilder.getManyAndCount();
 
-    console.log({ limit, offset });
-
     return {
       documents: documents.map((doc) => ({
         id: doc.id,
@@ -68,6 +66,34 @@ export class DocumentPublicService {
         url: this.fileService.buildPublicFileUrl(doc.fileId),
       })),
       total,
+    };
+  }
+
+  async findOne(id: string) {
+    const doc = await this.documentRepository.findOne({
+      where: { id, status: DocumentRecordStatus.PUBLISHED },
+      relations: { type: true, file: true },
+    });
+
+    if (!doc) {
+      throw new NotFoundException(`Document with ID ${id} not found or not published.`);
+    }
+
+    return {
+      id: doc.id,
+      code: `${doc.correlativeNumber}/${doc.year}`,
+      summary: doc.summary,
+      legalStatus: doc.legalStatus,
+      publicationDate: doc.publicationDate,
+      promulgationDate: doc.promulgationDate,
+      validUntil: doc.validUntil,
+      type: doc.type?.name,
+      file: {
+        url: this.fileService.buildPublicFileUrl(doc.file?.id),
+        name: doc.file?.originalName,
+        mimeType: doc.file?.mimeType,
+        size: doc.file?.sizeBytes,
+      },
     };
   }
 }
