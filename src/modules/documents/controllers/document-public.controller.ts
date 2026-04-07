@@ -18,8 +18,13 @@ export class DocumentPublicController {
   }
 
   @Get('types')
-  getDocumentTypes() {
+  getTypes() {
     return this.docTypesService.getActiveTypes();
+  }
+
+  @Get('recent')
+  getRecent() {
+    return this.documentsPublicService.findRecent();
   }
 
   @Get(':id')

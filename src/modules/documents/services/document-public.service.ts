@@ -54,17 +54,7 @@ export class DocumentPublicService {
     const [documents, total] = await queryBuilder.getManyAndCount();
 
     return {
-      documents: documents.map((doc) => ({
-        id: doc.id,
-        code: `${doc.correlativeNumber.toString().padStart(3, '0')}/${doc.year}`,
-        summary: doc.summary,
-        legalStatus: doc.legalStatus,
-        publicationDate: doc.publicationDate,
-        promulgationDate: doc.promulgationDate,
-        validUntil: doc.validUntil,
-        type: doc.type?.name,
-        url: this.fileService.buildPublicFileUrl(doc.fileId),
-      })),
+      documents: documents.map((doc) => this.mapDocumentToDto(doc)),
       total,
     };
   }
@@ -94,6 +84,37 @@ export class DocumentPublicService {
         mimeType: doc.file?.mimeType,
         size: doc.file?.sizeBytes,
       },
+    };
+  }
+
+  async findRecent() {
+    const documents = await this.documentRepository.find({
+      where: {
+        status: DocumentRecordStatus.PUBLISHED,
+      },
+      relations: {
+        type: true,
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+      take: 10,
+    });
+
+    return documents.map((doc) => this.mapDocumentToDto(doc));
+  }
+
+  private mapDocumentToDto(doc: DocumentRecord) {
+    return {
+      id: doc.id,
+      code: `${doc.correlativeNumber.toString().padStart(3, '0')}/${doc.year}`,
+      summary: doc.summary,
+      legalStatus: doc.legalStatus,
+      publicationDate: doc.publicationDate,
+      promulgationDate: doc.promulgationDate,
+      validUntil: doc.validUntil,
+      type: doc.type?.name,
+      url: this.fileService.buildPublicFileUrl(doc.fileId),
     };
   }
 }

@@ -34,7 +34,6 @@ export class DocumentController {
 
   @Get()
   findAll(@Query() params: FindAllDocumentsQueryDto) {
-    console.log(params);
     return this.documentService.findAll(params);
   }
 

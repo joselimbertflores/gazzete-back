@@ -11,8 +11,8 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-import { DocumentRecordType } from './document-type.entity';
 import { DocumentRelation } from './document-relation.entity';
+import { DocumentRecordType } from './document-type.entity';
 
 export enum DocumentLegalStatus {
   VALID = 'VALID',
