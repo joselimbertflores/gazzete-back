@@ -3,6 +3,7 @@
 /node_modules
 /build
 
+/import-data
 /static
 
 # Logs

@@ -39,10 +39,11 @@ export class CreateDocumentDto {
 
   @IsDate()
   @Type(() => Date)
+  @IsOptional()
   @IsBeforeOrEqual('publicationDate', {
     message: 'La fecha de promulgación no puede ser posterior a la publicación',
   })
-  promulgationDate: Date;
+  promulgationDate?: Date;
 
   @IsDate()
   @Type(() => Date)
