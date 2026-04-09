@@ -11,13 +11,13 @@ async function bootstrap() {
     const importer = app.get(GazetteImporterService);
 
     const imports = [
-      { name: 'ley-municipal', typeId: 1 },
+      // { name: 'ley-municipal', typeId: 1 },
       { name: 'resolucion-municipal', typeId: 2 },
       { name: 'ordenanza-municipal', typeId: 3 },
       { name: 'decreto-municipal', typeId: 4 },
       { name: 'decreto-edil', typeId: 5 },
-      { name: 'resolucion-ejecutiva', typeId: 6 },
-      { name: 'resolucion-administrativa', typeId: 7 },
+      // { name: 'resolucion-ejecutiva', typeId: 6 },
+      // { name: 'resolucion-administrativa', typeId: 7 },
     ];
 
     for (const item of imports) {

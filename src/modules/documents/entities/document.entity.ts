@@ -26,13 +26,20 @@ export enum DocumentRecordStatus {
   DISABLED = 'DISABLED',
 }
 
-@Index(['typeId', 'correlativeNumber', 'numberingScope'], { unique: true })
+@Index(['typeId', 'correlativeNumber', 'suffix', 'numberingScope'], {
+  unique: true,
+  where: `"suffix" IS NOT NULL`,
+})
+@Index(['typeId', 'correlativeNumber', 'numberingScope'], {
+  unique: true,
+  where: `"suffix" IS NULL`,
+})
 @Entity('documents')
 export class DocumentRecord {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'text'})
+  @Column({ type: 'text' })
   summary: string;
 
   @ManyToOne(() => DocumentRecordType)
@@ -45,8 +52,14 @@ export class DocumentRecord {
   @Column({ type: 'integer' })
   correlativeNumber: number;
 
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  suffix: string | null;
+
   @Column({ type: 'integer' })
   year: number;
+
+  @Column({ type: 'varchar', length: 30 })
+  code: string;
 
   /**
    * Campo técnico para soportar unicidad flexible:

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 
 import { DocumentRecord, DocumentRecordStatus } from '../entities';
 import { FilesService } from 'src/modules/files/files.service';
@@ -13,45 +13,94 @@ export class DocumentPublicService {
     private fileService: FilesService,
   ) {}
 
+  // async findAll(query: FindPublicDocumentsDto) {
+  //   const { term, type, year, legalStatus, offset, limit } = query;
+
+  //   const queryBuilder = this.documentRepository.createQueryBuilder('doc');
+
+  //   queryBuilder.where('doc.status = :status', { status: DocumentRecordStatus.PUBLISHED });
+
+  //   if (term) {
+  //     const trimmed = term.trim();
+
+  //     if (/^\d+$/.test(trimmed)) {
+  //       queryBuilder.andWhere('(doc.correlativeNumber = :num OR LOWER(doc.summary) LIKE LOWER(:term))', {
+  //         num: Number(trimmed),
+  //         term: `%${trimmed}%`,
+  //       });
+  //     } else {
+  //       queryBuilder.andWhere('LOWER(doc.summary) LIKE LOWER(:term)', { term: `%${trimmed}%` });
+  //     }
+  //   }
+
+  //   if (type) {
+  //     queryBuilder.andWhere('doc.typeId = :typeId', { typeId: type });
+  //   }
+
+  //   if (year) {
+  //     queryBuilder.andWhere('doc.year = :year', { year });
+  //   }
+
+  //   if (legalStatus) {
+  //     queryBuilder.andWhere('doc.legalStatus = :legalStatus', { legalStatus });
+  //   }
+
+  //   queryBuilder.leftJoinAndSelect('doc.type', 'type');
+
+  //   queryBuilder.orderBy('doc.correlativeNumber', 'DESC');
+
+  //   queryBuilder.skip(offset).take(limit);
+
+  //   const [documents, total] = await queryBuilder.getManyAndCount();
+
+  //   return {
+  //     documents: documents.map((doc) => this.mapDocumentToDto(doc)),
+  //     total,
+  //   };
+  // }
+
   async findAll(query: FindPublicDocumentsDto) {
     const { term, type, year, legalStatus, offset, limit } = query;
 
-    const queryBuilder = this.documentRepository.createQueryBuilder('doc');
+    const qb = this.documentRepository.createQueryBuilder('doc');
 
-    queryBuilder.where('doc.status = :status', { status: DocumentRecordStatus.PUBLISHED });
+    console.log(term);
 
-    if (term) {
-      const trimmed = term.trim();
+    qb.where('doc.status = :status', { status: DocumentRecordStatus.PUBLISHED });
 
-      if (/^\d+$/.test(trimmed)) {
-        queryBuilder.andWhere('(doc.correlativeNumber = :num OR LOWER(doc.summary) LIKE LOWER(:term))', {
-          num: Number(trimmed),
-          term: `%${trimmed}%`,
-        });
-      } else {
-        queryBuilder.andWhere('LOWER(doc.summary) LIKE LOWER(:term)', { term: `%${trimmed}%` });
-      }
+    if (term?.trim()) {
+      const normalizedTerm = term.trim();
+
+      qb.andWhere(
+        new Brackets((subQb) => {
+          subQb
+            .where('doc.code ILIKE :term', { term: `%${normalizedTerm}%` })
+            .orWhere('doc.summary ILIKE :term', { term: `%${normalizedTerm}%` });
+        }),
+      );
     }
 
     if (type) {
-      queryBuilder.andWhere('doc.typeId = :typeId', { typeId: type });
+      qb.andWhere('doc.typeId = :typeId', { typeId: type });
     }
 
     if (year) {
-      queryBuilder.andWhere('doc.year = :year', { year });
+      qb.andWhere('doc.year = :year', { year });
     }
 
     if (legalStatus) {
-      queryBuilder.andWhere('doc.legalStatus = :legalStatus', { legalStatus });
+      qb.andWhere('doc.legalStatus = :legalStatus', { legalStatus });
     }
 
-    queryBuilder.leftJoinAndSelect('doc.type', 'type');
+    qb.leftJoinAndSelect('doc.type', 'type');
 
-    queryBuilder.orderBy('doc.correlativeNumber', 'DESC');
+    qb.orderBy('doc.correlativeNumber', 'DESC')
+      .addOrderBy('doc.suffix', 'DESC', 'NULLS LAST')
+      .addOrderBy('doc.year', 'DESC');
 
-    queryBuilder.skip(offset).take(limit);
+    qb.skip(offset).take(limit);
 
-    const [documents, total] = await queryBuilder.getManyAndCount();
+    const [documents, total] = await qb.getManyAndCount();
 
     return {
       documents: documents.map((doc) => this.mapDocumentToDto(doc)),
@@ -96,6 +145,8 @@ export class DocumentPublicService {
         type: true,
       },
       order: {
+        year: 'DESC',
+        correlativeNumber: 'DESC',
         createdAt: 'DESC',
       },
       take: 10,
@@ -105,14 +156,9 @@ export class DocumentPublicService {
   }
 
   private mapDocumentToDto(doc: DocumentRecord) {
+    const { file, type, ...props } = doc;
     return {
-      id: doc.id,
-      code: `${doc.correlativeNumber.toString().padStart(3, '0')}/${doc.year}`,
-      summary: doc.summary,
-      legalStatus: doc.legalStatus,
-      publicationDate: doc.publicationDate,
-      promulgationDate: doc.promulgationDate,
-      validUntil: doc.validUntil,
+      ...props,
       type: doc.type?.name,
       url: this.fileService.buildPublicFileUrl(doc.fileId),
     };

@@ -28,8 +28,8 @@ export class PaginationParamsDto {
   @IsString()
   @IsNotEmpty()
   @IsOptional()
-  @Matches(/^[a-zA-Z0-9\s-]{1,255}$/, {
-    message: 'El término de búsqueda contiene caracteres no válidos.',
-  })
+  // @Matches(/^[a-zA-Z0-9\s-]{1,255}$/, {
+  //   message: 'El término de búsqueda contiene caracteres no válidos.',
+  // })
   readonly term?: string;
 }

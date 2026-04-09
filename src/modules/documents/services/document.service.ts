@@ -8,22 +8,22 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Brackets, DataSource, EntityManager, In, QueryFailedError, Repository } from 'typeorm';
+import { Brackets, DataSource, QueryFailedError, Repository } from 'typeorm';
 
 import {
   DocumentRecord,
   DocumentRelation,
   DocumentRecordType,
+  DocumentLegalStatus,
   DocumentRelationType,
   DocumentNumberingMode,
-  DocumentLegalStatus,
 } from '../entities';
 import {
   UpdateDocumentDto,
   CreateDocumentDto,
+  ChangeDocumentStatusDto,
   FindAllDocumentsQueryDto,
   SearchDocumentForRelationDto,
-  ChangeDocumentStatusDto,
 } from '../dtos';
 import { FilesService } from 'src/modules/files/files.service';
 
@@ -49,18 +49,15 @@ export class DocumentService {
       .leftJoinAndSelect('document.file', 'file')
       .take(limit)
       .skip(offset)
-      .orderBy('document.year', 'DESC')
-      .addOrderBy('document.correlativeNumber', 'DESC');
+      .orderBy('document.createdAt', 'DESC');
 
     if (term?.trim()) {
       const normalizedTerm = term.trim();
       queryBuilder.andWhere(
-        new Brackets((qb) => {
-          if (/^\d+$/.test(normalizedTerm)) {
-            qb.where('document.correlativeNumber = :correlativeNumber', { correlativeNumber: Number(normalizedTerm) });
-          } else {
-            qb.where('document.summary ILIKE :summary', { summary: `%${normalizedTerm}%` });
-          }
+        new Brackets((subQb) => {
+          subQb
+            .where('document.code ILIKE :term', { term: `%${normalizedTerm}%` })
+            .orWhere('document.summary ILIKE :term', { term: `%${normalizedTerm}%` });
         }),
       );
     }
@@ -96,11 +93,15 @@ export class DocumentService {
 
         const file = await this.fileService.getPendingFileOrFail(fileId, manager);
 
+        const numberingScope = this.buildNumberingScope(type, rest.year);
+        const code = this.generateCode(rest.correlativeNumber, rest.suffix ?? null, rest.year);
+
         const document = manager.create(DocumentRecord, {
           ...rest,
           type,
           file,
-          numberingScope: this.buildNumberingScope(type, rest.year),
+          code,
+          numberingScope,
         });
 
         const saved = await manager.save(document);
@@ -130,7 +131,6 @@ export class DocumentService {
           const type = await manager.findOne(DocumentRecordType, { where: { id: typeId } });
           if (!type) throw new BadRequestException('Invalid document type');
           document.type = type;
-          document.numberingScope = this.buildNumberingScope(type, document.year);
         }
 
         if (fileId && fileId !== document.file.id) {
@@ -143,7 +143,11 @@ export class DocumentService {
           await this.fileService.markAsActive(newFile.id, manager);
           await this.fileService.markAsDeleted(oldFile.id, manager);
         }
+
         Object.assign(document, rest);
+        document.code = this.generateCode(document.correlativeNumber, document.suffix, document.year);
+        document.numberingScope = this.buildNumberingScope(document.type, document.year);
+
         return await manager.save(document);
       });
       return this.toDto(document);
@@ -213,7 +217,7 @@ export class DocumentService {
       description: relation.description,
       source: {
         id: relation.sourceDocument.id,
-        code: this.buildCode(relation.sourceDocument.correlativeNumber, relation.sourceDocument.year),
+        code: relation.sourceDocument.code,
       },
     };
   }
@@ -256,11 +260,11 @@ export class DocumentService {
 
     return documents.map((doc) => ({
       id: doc.id,
-      correlativeNumber: doc.correlativeNumber,
       year: doc.year,
-      code: this.buildCode(doc.correlativeNumber, doc.year),
-      publicationDate: doc.publicationDate,
+      code: doc.code,
       legalStatus: doc.legalStatus,
+      publicationDate: doc.publicationDate,
+      correlativeNumber: doc.correlativeNumber,
       type: {
         id: doc.type.id,
         name: doc.type.name,
@@ -268,8 +272,10 @@ export class DocumentService {
     }));
   }
 
-  private buildCode(correlativeNumber: number, year: number) {
-    return `${correlativeNumber.toString().padStart(3, '0')}/${year}`;
+  private generateCode(correlativeNumber: number, suffix: string | null, year: number) {
+    const normalizedSuffix = suffix?.trim().toUpperCase();
+    const formattedNumber = correlativeNumber.toString().padStart(3, '0');
+    return normalizedSuffix ? `${formattedNumber}-${normalizedSuffix}/${year}` : `${formattedNumber}/${year}`;
   }
 
   private buildNumberingScope(type: DocumentRecordType, year: number): string {
@@ -284,7 +290,6 @@ export class DocumentService {
     const { file, ...rest } = doc;
     return {
       ...rest,
-      code: this.buildCode(rest.correlativeNumber, rest.year),
       file: {
         url: this.fileService.buildPublicFileUrl(file.id),
         name: file.originalName,

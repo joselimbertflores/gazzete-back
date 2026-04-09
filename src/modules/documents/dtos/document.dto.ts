@@ -1,23 +1,10 @@
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsDate,
-  IsEnum,
-  IsInt,
-  IsUUID,
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  ValidateNested,
-  IsNumber,
-  Min,
-  Max,
-} from 'class-validator';
+import { IsDate, IsEnum, IsInt, IsUUID, IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
 
 import { DocumentLegalStatus, DocumentRelationType } from '../entities';
-import { PaginationParamsDto } from 'src/modules/common';
 import { IsAfterOrEqual, IsBeforeOrEqual } from '../validators';
+import { PaginationParamsDto } from 'src/modules/common';
 export class CreateDocumentDto {
   @IsInt()
   @Type(() => Number)
@@ -26,6 +13,11 @@ export class CreateDocumentDto {
   @IsInt()
   @Type(() => Number)
   correlativeNumber: number;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  suffix?: string;
 
   @IsString()
   @IsNotEmpty()
