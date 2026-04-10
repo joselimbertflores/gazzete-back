@@ -32,13 +32,20 @@ export class UsersService {
     return await this.userRepository.save(user);
   }
 
-  async syncUserFromIdentity(payload: AccessTokenPayload, defaultRole?: string) {
+  async syncUserFromIdentity(payload: AccessTokenPayload) {
     const externalKey = payload.externalKey;
     let user = await this.userRepository.findOne({ where: { externalKey } });
+
     if (!user) {
       user = this.userRepository.create({ fullName: payload.name, externalKey });
       return await this.userRepository.save(user);
     }
+
+    if (user.fullName !== payload.name) {
+      user.fullName = payload.name;
+      user = await this.userRepository.save(user);
+    }
+
     return user;
   }
 }

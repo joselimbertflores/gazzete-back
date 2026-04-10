@@ -15,10 +15,10 @@ async function bootstrap() {
     }),
   );
   app.enableCors({
-    origin: 'http://192.168.30.34:7001',
+    origin: 'http://localhost:7001',
     credentials: true,
   });
   app.use(cookieParser());
-  await app.listen(process.env.PORT ?? 3000, "192.168.30.34");
+  await app.listen(process.env.PORT ?? 3000, "localhost");
 }
 bootstrap();

@@ -49,8 +49,7 @@ export class OAuthGuard implements CanActivate {
     try {
       const payload: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(accessToken);
       return this.identityService.loadUser(payload.externalKey);
-    } catch (error: unknown) {
-      if (error instanceof HttpException) throw error;
+    } catch {
       return null;
     }
   }
@@ -61,7 +60,7 @@ export class OAuthGuard implements CanActivate {
       this.setCookies(response, result);
       const payload: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(result.accessToken);
       return await this.identityService.loadUser(payload.externalKey);
-    } catch (error: unknown) {
+    } catch {
       this.clearCookies(response);
       throw new UnauthorizedException('Token expired or invalid. Please login again.');
     }
