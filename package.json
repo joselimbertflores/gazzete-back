@@ -28,6 +28,7 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/serve-static": "^5.0.5",
     "@nestjs/typeorm": "^11.0.0",
     "@types/mime-types": "^3.0.1",
     "axios": "^1.13.6",

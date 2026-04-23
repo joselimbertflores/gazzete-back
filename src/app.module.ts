@@ -8,6 +8,8 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { UsersModule } from './modules/users/users.module';
 import { FilesModule } from './modules/files/files.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 @Module({
   imports: [
@@ -27,6 +29,9 @@ import { AuthModule } from './modules/auth/auth.module';
         autoLoadEntities: true,
         synchronize: true,
       }),
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
     }),
     AuthModule,
     UsersModule,

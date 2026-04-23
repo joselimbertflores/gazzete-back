@@ -182,11 +182,11 @@ export class GazetteImporterService {
       return;
     }
 
-    const filePath = path.join(process.cwd(), filesFolder, parsed.fileName);
+    const filePath = path.join(process.cwd(), filesFolder, parsed.fileName.trim());
 
     // 📂 Validar archivo físico
     if (!fs.existsSync(filePath)) {
-      console.warn(`⚠ Archivo no encontrado: ${parsed.fileName}`);
+      console.warn(`⚠ Archivo no encontrado: ${parsed.fileName} - path: ${filePath}`);
       return;
     }
 
@@ -215,6 +215,7 @@ export class GazetteImporterService {
       // ❌ error real
       console.error(`❌ Error procesando ${parsed.fileName}`);
       console.error(parsed);
+      console.log(error);
     }
   }
 }

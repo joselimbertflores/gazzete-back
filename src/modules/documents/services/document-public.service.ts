@@ -94,9 +94,9 @@ export class DocumentPublicService {
 
     qb.leftJoinAndSelect('doc.type', 'type');
 
-    qb.orderBy('doc.correlativeNumber', 'DESC')
-      .addOrderBy('doc.suffix', 'DESC', 'NULLS LAST')
-      .addOrderBy('doc.year', 'DESC');
+    qb.orderBy('doc.year', 'DESC')
+      .addOrderBy('doc.correlativeNumber', 'DESC')
+      .addOrderBy('doc.suffix', 'DESC', 'NULLS LAST');
 
     qb.skip(offset).take(limit);
 
