@@ -30,10 +30,10 @@ export class EnvironmentVariables {
   IDENTITY_HUB_URL: string;
 
   @IsString()
-  CLIENT_KEY: string;
+  OAUTH_CLIENT_ID: string;
 
   @IsString()
-  CLIENT_SECRET: string;
+  OAUTH_CLIENT_SECRET: string;
 
   @IsString()
   OAUTH_REDIRECT_URI: string;
