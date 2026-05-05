@@ -27,4 +27,16 @@ export class AuthCallbackParamsDto {
   @IsOptional()
   @IsString()
   client_name?: string;
+
+  @IsOptional()
+  @IsString()
+  error_description?: string;
+
+  @IsOptional()
+  @IsString()
+  error_uri?: string;
+
+  @IsOptional()
+  @IsString()
+  iss?: string;
 }

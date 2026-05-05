@@ -1,5 +1,5 @@
-import { plainToInstance } from 'class-transformer';
-import { IsNumber, IsString, validateSync } from 'class-validator';
+import { plainToInstance, Transform } from 'class-transformer';
+import { IsBoolean, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, validateSync } from 'class-validator';
 
 export class EnvironmentVariables {
   @IsNumber()
@@ -39,7 +39,27 @@ export class EnvironmentVariables {
   OAUTH_REDIRECT_URI: string;
 
   @IsString()
-  LOGIN_SUCCESS_REDIRECT: string;
+  @IsNotEmpty()
+  AUTH_SUCCESS_REDIRECT: string;
+
+  @IsString()
+  @IsNotEmpty()
+  AUTH_ERROR_REDIRECT: string;
+
+  @IsIn(['development', 'production'])
+  NODE_ENV: 'development' | 'production';
+
+  @IsOptional()
+  @IsString()
+  CORS_ORIGIN?: string;
+
+  @Transform(({ value }) => value === 'true')
+  @IsBoolean()
+  IDENTITY_COOKIE_SECURE: boolean;
+
+  @IsString()
+  @IsNotEmpty()
+  OAUTH_ISSUER: string;
 }
 
 export function validate(config: Record<string, unknown>) {

@@ -1,18 +1,19 @@
-import { Injectable, CanActivate, HttpException, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import type { Request, Response } from 'express';
 
-import { AccessTokenPayload, TokenRequestResponse } from '../interfaces';
-import { IdentityService, TokenVerifierService } from '../services';
+import { AuthCookieService, AuthIdentityService, TokenVerifierService } from '../services';
 import { IS_PUBLIC_KEY } from '../decorators';
+import { AccessTokenPayload } from '../interfaces';
 
 @Injectable()
 export class OAuthGuard implements CanActivate {
   constructor(
-    private reflector: Reflector,
-    private identityService: IdentityService,
-    private tokenVerifierService: TokenVerifierService,
+    private readonly reflector: Reflector,
+    private readonly identityService: AuthIdentityService,
+    private readonly authCookieService: AuthCookieService,
+    private readonly tokenVerifierService: TokenVerifierService,
   ) {}
 
   async canActivate(context: ExecutionContext) {
@@ -23,67 +24,70 @@ export class OAuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
+
     if (isPublic) return true;
 
-    const accessToken = request.cookies['gazette_access'] as string | undefined;
-    const refreshToken = request.cookies['gazette_refresh'] as string | undefined;
+    const accessToken = this.authCookieService.getAccessToken(request);
+    const refreshToken = this.authCookieService.getRefreshToken(request);
 
     const user = await this.authenticate(accessToken, refreshToken, response);
+
     request['user'] = user;
+
     return true;
   }
 
-  private async authenticate(accessToken: string | undefined, refreshToken: string | undefined, res: Response) {
+  private async authenticate(accessToken: string | undefined, refreshToken: string | undefined, response: Response) {
     if (accessToken) {
       const user = await this.tryAccess(accessToken);
       if (user) return user;
     }
+
     if (refreshToken) {
-      const user = await this.tryRefresh(refreshToken, res);
-      return user;
+      return this.tryRefresh(refreshToken, response);
     }
+
     throw new UnauthorizedException('Authentication required. Please login.');
   }
 
   private async tryAccess(accessToken: string) {
+    let payload: AccessTokenPayload;
+
     try {
-      const payload: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(accessToken);
-      return this.identityService.loadUser(payload.externalKey);
+      payload = await this.tokenVerifierService.verifyAccessToken(accessToken);
     } catch {
       return null;
     }
+
+    const user = await this.identityService.loadUser(payload.externalKey);
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return user;
   }
 
   private async tryRefresh(refreshToken: string, response: Response) {
     try {
-      const result = await this.identityService.refreshTokens(refreshToken);
-      this.setCookies(response, result);
-      const payload: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(result.accessToken);
-      return await this.identityService.loadUser(payload.externalKey);
+      const tokens = await this.identityService.refreshTokens(refreshToken);
+
+      this.authCookieService.setAuthCookies(response, tokens);
+
+      const payload = await this.tokenVerifierService.verifyAccessToken(tokens.accessToken);
+
+      const user = await this.identityService.loadUser(payload.externalKey);
+
+      if (!user) {
+        this.authCookieService.clearAuthCookies(response);
+        throw new UnauthorizedException('User not found');
+      }
+
+      return user;
+      
     } catch {
-      this.clearCookies(response);
+      this.authCookieService.clearAuthCookies(response);
       throw new UnauthorizedException('Token expired or invalid. Please login again.');
     }
-  }
-
-  private setCookies(res: Response, result: TokenRequestResponse) {
-    res.cookie('gazette_access', result.accessToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
-      maxAge: result.accessTokenExpiresIn * 1000,
-    });
-
-    res.cookie('gazette_refresh', result.refreshToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
-      maxAge: result.refreshTokenExpiresIn * 1000,
-    });
-  }
-
-  private clearCookies(res: Response) {
-    res.clearCookie('gazette_access');
-    res.clearCookie('gazette_refresh');
   }
 }

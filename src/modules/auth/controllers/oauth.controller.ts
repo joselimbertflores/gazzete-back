@@ -1,74 +1,96 @@
-import { Controller, Get, Query, Res, Req, UnauthorizedException, BadRequestException } from '@nestjs/common';
-import type { Response } from 'express';
+import { Controller, Get, Query, Res, Req, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 
-import { AuthCallbackParamsDto } from '../dtos';
+import { EnvironmentVariables } from 'src/config/env.validation';
+import { AuthCookieService, OAuthService } from '../services';
 import { Cookies, Public } from '../decorators';
-import { OAuthuthService } from '../services';
+import { AuthCallbackParamsDto } from '../dtos';
 
 @Controller('auth')
 export class OAuthController {
-  constructor(private oAuthService: OAuthuthService) {}
+  private readonly logger = new Logger(OAuthController.name);
 
-  @Get('login')
+  constructor(
+    private readonly oAuthService: OAuthService,
+    private readonly authCookieService: AuthCookieService,
+    private readonly configService: ConfigService<EnvironmentVariables>,
+  ) {}
+
+  // Esta ruta inicia el flujo OAuth. Construye la URL de autorización y redirige al usuario al IdP.
   @Public()
+  @Get('login')
   login(@Res() response: Response) {
     const { url, state } = this.oAuthService.buildAuthorizeUrl();
-    response.cookie('oauth_state', state, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
-      maxAge: 5 * 60 * 1000,
-    });
+
+    this.authCookieService.setOAuthStateCookie(response, state);
+
     return response.redirect(url);
   }
 
-  @Get('callback')
   @Public()
+  @Get('callback')
   async callback(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
     @Query() queryParams: AuthCallbackParamsDto,
-    @Cookies('oauth_state') cookieState: string,
-    @Res({ passthrough: true }) res: Response,
+    @Cookies('gazette_oauth_state') cookieState: string,
   ) {
-    /**
-     * 1. Manejar errores devueltos por /authorize
-     */
     if (queryParams.error) {
-      res.clearCookie('oauth_state');
-      return res.redirect(
-        `http://localhost:7001/auth/error?error=${queryParams.error}&client_name=${queryParams.client_name}`,
-      );
+      return this.redirectToError(response, request, queryParams.error);
     }
 
-    /**
-     * 2. Validar state (protección CSRF)
-     */
     if (!queryParams.state || queryParams.state !== cookieState) {
-      res.clearCookie('oauth_state');
-      throw new UnauthorizedException('Invalid OAuth state');
+      return this.redirectToError(response, request, 'invalid_state');
     }
 
     if (!queryParams.code) {
-      throw new BadRequestException('Missing authorization code');
+      return this.redirectToError(response, request, 'missing_code');
     }
 
-    const { result, url } = await this.oAuthService.exchangeAuthorizationCode(queryParams.code);
+    try {
+      const redirectUrl = await this.completeAuthorizationCodeFlow(queryParams.code, response);
+      return response.redirect(redirectUrl);
+    } catch (error: unknown) {
+      this.logger.error(
+        'OAuth callback failed during token exchange or user synchronization',
+        error instanceof Error ? error.stack : String(error),
+      );
 
-    res.clearCookie('oauth_state');
+      return this.redirectToError(response, request, 'token_exchange_failed');
+    }
+  }
 
-    res.cookie('gazette_access', result.accessToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
-      maxAge: result.accessTokenExpiresIn * 1000,
+  private redirectToError(response: Response, request: Request, error: string) {
+    this.authCookieService.clearOAuthStateCookie(response);
+
+    const redirectUrl = this.buildRedirectUrl(this.configService.getOrThrow<string>('AUTH_ERROR_REDIRECT'), request, {
+      error,
     });
 
-    res.cookie('gazette_refresh', result.refreshToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
-      maxAge: result.refreshTokenExpiresIn * 1000,
-    });
+    return response.redirect(redirectUrl);
+  }
 
-    return res.redirect(url);
+  private buildRedirectUrl(target: string, request: Request, params?: Record<string, string | undefined>) {
+    const isAbsolute = /^https?:\/\//i.test(target);
+    const baseUrl = `${request.protocol}://${request.get('host')}`;
+
+    const url = isAbsolute ? new URL(target) : new URL(target, baseUrl);
+
+    for (const [key, value] of Object.entries(params ?? {})) {
+      if (value) {
+        url.searchParams.set(key, value);
+      }
+    }
+    return isAbsolute ? url.toString() : `${url.pathname}${url.search}`;
+  }
+
+  private async completeAuthorizationCodeFlow(code: string, response: Response) {
+    const { tokens, url } = await this.oAuthService.exchangeAuthorizationCode(code);
+
+    this.authCookieService.clearOAuthStateCookie(response);
+    this.authCookieService.setAuthCookies(response, tokens);
+
+    return url;
   }
 }

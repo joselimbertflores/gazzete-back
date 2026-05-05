@@ -1,4 +1,5 @@
-export * from './identity.service';
-export * from './jwks.service';
+export * from './auth-identity.service';
 export * from './token-verifier.service';
+export * from './auth-cookie.service';
+export * from './jwks.service';
 export * from './oauth.service';
