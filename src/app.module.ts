@@ -35,7 +35,8 @@ import { AuthModule } from './modules/auth/auth.module';
       },
     }),
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'public'),
+      rootPath: join(process.cwd(), 'public', 'browser'),
+      exclude: ['/api/{*path}', '/files/{*path}'],
     }),
     AuthModule,
     UsersModule,

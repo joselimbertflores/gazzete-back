@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res, Req, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
+import { Controller, Get, Query, Res, Req, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 
@@ -22,7 +22,6 @@ export class OAuthController {
   @Get('login')
   login(@Res() response: Response) {
     const { url, state } = this.oAuthService.buildAuthorizeUrl();
-
     this.authCookieService.setOAuthStateCookie(response, state);
 
     return response.redirect(url);
@@ -50,8 +49,10 @@ export class OAuthController {
 
     try {
       const redirectUrl = await this.completeAuthorizationCodeFlow(queryParams.code, response);
+      console.log(redirectUrl);
       return response.redirect(redirectUrl);
     } catch (error: unknown) {
+      console.log(error);
       this.logger.error(
         'OAuth callback failed during token exchange or user synchronization',
         error instanceof Error ? error.stack : String(error),
@@ -87,7 +88,6 @@ export class OAuthController {
 
   private async completeAuthorizationCodeFlow(code: string, response: Response) {
     const { tokens, url } = await this.oAuthService.exchangeAuthorizationCode(code);
-
     this.authCookieService.clearOAuthStateCookie(response);
     this.authCookieService.setAuthCookies(response, tokens);
 

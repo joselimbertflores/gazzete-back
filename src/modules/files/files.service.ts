@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { createReadStream, existsSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import { EntityManager, Repository } from 'typeorm';
 import { v4 as uuid } from 'uuid';
 
@@ -26,7 +26,7 @@ export class FilesService {
     @InjectRepository(StoredFile) private fileRepository: Repository<StoredFile>,
   ) {
     const uploadPath = this.configService.getOrThrow<string>('UPLOAD_PATH');
-    this.BASE_UPLOAD_PATH = join(process.cwd(), uploadPath);
+    this.BASE_UPLOAD_PATH = resolve(process.cwd(), uploadPath);
   }
 
   async uploadDocument(file: Express.Multer.File, year: number): Promise<UploadedFileResult> {

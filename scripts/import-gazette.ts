@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from 'src/app.module';
 import { GazetteImporterService } from 'src/modules/documents/import/gazette-importer.service';
+import { join } from 'path';
 
 async function bootstrap() {
   console.log('🚀 Iniciando importación...\n');
@@ -21,12 +22,13 @@ async function bootstrap() {
       { name: 'resolucion-administrativa-tributaria', typeId: 10 },
       { name: 'resolucion-administrativa-regulatoria', typeId: 11 },
     ];
+    const importDataPath = join(process.cwd(), 'import-data');
 
     for (const item of imports) {
       await importer.run({
-        csvPath: `import-data/csv/${item.name}.csv`,
+        csvPath: join(importDataPath, 'csv', `${item.name}.csv`),
         typeId: item.typeId,
-        filesFolder: `import-data/files/${item.name}`,
+        filesFolder: join(importDataPath, 'files', item.name),
       });
     }
     console.log('\n✅ Todas las importaciones finalizadas');
