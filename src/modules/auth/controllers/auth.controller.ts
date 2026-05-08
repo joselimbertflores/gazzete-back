@@ -18,7 +18,7 @@ export class AuthController {
   @Public()
   @Post('logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    this.authCookieService.clearAuthCookies(res);
+    this.authCookieService.clearSessionCookies(res);
 
     return {
       ok: true,

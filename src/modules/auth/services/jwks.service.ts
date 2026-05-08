@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { JwksClient } from 'jwks-rsa';
 
 import { EnvironmentVariables } from 'src/config';
+
 @Injectable()
 export class JwksService {
   private readonly client: JwksClient;
@@ -11,7 +12,7 @@ export class JwksService {
   constructor(private readonly configService: ConfigService<EnvironmentVariables>) {
     const identityHubUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
 
-    const jwksUri = new URL('/.well-known/jwks.json', identityHubUrl).toString();
+    const jwksUri = new URL('.well-known/jwks.json', this.ensureTrailingSlash(identityHubUrl)).toString();
 
     this.client = new JwksClient({
       jwksUri,
@@ -26,5 +27,9 @@ export class JwksService {
   async getPublicKey(kid: string): Promise<string> {
     const key = await this.client.getSigningKey(kid);
     return key.getPublicKey();
+  }
+
+  private ensureTrailingSlash(value: string): string {
+    return value.endsWith('/') ? value : `${value}/`;
   }
 }

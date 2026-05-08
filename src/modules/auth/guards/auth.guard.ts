@@ -6,12 +6,14 @@ import type { Request, Response } from 'express';
 import { AuthCookieService, AuthIdentityService, TokenVerifierService } from '../services';
 import { IS_PUBLIC_KEY } from '../decorators';
 import { AccessTokenPayload } from '../interfaces';
+import { UsersService } from 'src/modules/users/users.service';
 
 @Injectable()
 export class OAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly identityService: AuthIdentityService,
+    private readonly usersService: UsersService,
     private readonly authCookieService: AuthCookieService,
     private readonly tokenVerifierService: TokenVerifierService,
   ) {}
@@ -27,30 +29,30 @@ export class OAuthGuard implements CanActivate {
 
     if (isPublic) return true;
 
-    const accessToken = this.authCookieService.getAccessToken(request);
-    const refreshToken = this.authCookieService.getRefreshToken(request);
-
-    const user = await this.authenticate(accessToken, refreshToken, response);
+    const user = await this.authenticate(request, response);
 
     request['user'] = user;
 
     return true;
   }
 
-  private async authenticate(accessToken: string | undefined, refreshToken: string | undefined, response: Response) {
+  private async authenticate(request: Request, response: Response) {
+    const accessToken = this.authCookieService.getAccessToken(request);
+    const refreshToken = this.authCookieService.getRefreshToken(request);
+
     if (accessToken) {
-      const user = await this.tryAccess(accessToken);
+      const user = await this.tryAccessToken(accessToken);
       if (user) return user;
     }
 
     if (refreshToken) {
-      return this.tryRefresh(refreshToken, response);
+      return this.tryRefreshToken(refreshToken, response);
     }
 
     throw new UnauthorizedException('Authentication required. Please login.');
   }
 
-  private async tryAccess(accessToken: string) {
+  private async tryAccessToken(accessToken: string) {
     let payload: AccessTokenPayload;
 
     try {
@@ -59,7 +61,7 @@ export class OAuthGuard implements CanActivate {
       return null;
     }
 
-    const user = await this.identityService.loadUser(payload.externalKey);
+    const user = await this.usersService.findByExternalKey(payload.externalKey);
 
     if (!user) {
       throw new UnauthorizedException('User not found');
@@ -68,23 +70,19 @@ export class OAuthGuard implements CanActivate {
     return user;
   }
 
-  private async tryRefresh(refreshToken: string, response: Response) {
+  private async tryRefreshToken(refreshToken: string, response: Response) {
     try {
       const tokens = await this.identityService.refreshTokens(refreshToken);
-
-      this.authCookieService.setAuthCookies(response, tokens);
-
       const payload = await this.tokenVerifierService.verifyAccessToken(tokens.accessToken);
-
-      const user = await this.identityService.loadUser(payload.externalKey);
+      const user = await this.usersService.findByExternalKey(payload.externalKey);
 
       if (!user) {
-        this.authCookieService.clearAuthCookies(response);
         throw new UnauthorizedException('User not found');
       }
 
+      this.authCookieService.setAuthCookies(response, tokens);
+
       return user;
-      
     } catch {
       this.authCookieService.clearAuthCookies(response);
       throw new UnauthorizedException('Token expired or invalid. Please login again.');

@@ -15,10 +15,7 @@ export class AuthCookieService {
   constructor(private readonly configService: ConfigService<EnvironmentVariables>) {}
 
   setOAuthStateCookie(response: Response, state: string) {
-    response.cookie(this.stateCookieName, state, {
-      ...this.getBaseOptions(),
-      maxAge: 5 * 60 * 1000,
-    });
+    response.cookie(this.stateCookieName, state, this.getCookieOptions(5 * 60 * 1000));
   }
 
   clearOAuthStateCookie(response: Response) {
@@ -42,23 +39,36 @@ export class AuthCookieService {
     response.clearCookie(this.refreshCookieName, this.getBaseOptions());
   }
 
+  clearSessionCookies(response: Response) {
+    this.clearAuthCookies(response);
+    this.clearOAuthStateCookie(response);
+  }
+
   getAccessToken(request: Request): string | undefined {
-    return request.cookies['gazette_access'] as string | undefined;
+    return request.cookies[this.accessCookieName] as string | undefined;
   }
 
   getRefreshToken(request: Request): string | undefined {
-    return request.cookies['gazette_refresh'] as string | undefined;
+    return request.cookies[this.refreshCookieName] as string | undefined;
+  }
+
+  getOAuthState(request: Request): string | undefined {
+    return request.cookies[this.stateCookieName] as string | undefined;
   }
 
   private getBaseOptions(): CookieOptions {
-    const secure = this.configService.getOrThrow<boolean>('IDENTITY_COOKIE_SECURE');
-    // TODO revisar si el valor es booleano o string (en ese caso, hacer la conversión)
-    // console.log(secure);
     return {
       httpOnly: true,
       sameSite: 'lax',
-      secure,
+      secure: this.configService.getOrThrow<boolean>('AUTH_COOKIE_SECURE'),
       path: '/',
+    };
+  }
+
+  private getCookieOptions(maxAge: number): CookieOptions {
+    return {
+      ...this.getBaseOptions(),
+      maxAge,
     };
   }
 }

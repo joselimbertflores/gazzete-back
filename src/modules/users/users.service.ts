@@ -32,9 +32,13 @@ export class UsersService {
     return await this.userRepository.save(user);
   }
 
+  async findByExternalKey(externalKey: string) {
+    return this.userRepository.findOne({ where: { externalKey } });
+  }
+
   async syncUserFromIdentity(payload: AccessTokenPayload) {
     const externalKey = payload.externalKey;
-    let user = await this.userRepository.findOne({ where: { externalKey } });
+    let user = await this.findByExternalKey(externalKey);
 
     if (!user) {
       user = this.userRepository.create({ fullName: payload.name, externalKey });

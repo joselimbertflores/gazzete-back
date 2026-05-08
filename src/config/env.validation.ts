@@ -38,14 +38,6 @@ export class EnvironmentVariables {
   @IsString()
   OAUTH_REDIRECT_URI: string;
 
-  @IsString()
-  @IsNotEmpty()
-  AUTH_SUCCESS_REDIRECT: string;
-
-  @IsString()
-  @IsNotEmpty()
-  AUTH_ERROR_REDIRECT: string;
-
   @IsIn(['development', 'production'])
   NODE_ENV: 'development' | 'production';
 
@@ -53,9 +45,14 @@ export class EnvironmentVariables {
   @IsString()
   CORS_ORIGIN?: string;
 
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  GAZETTE_UI_BASE_URL?: string;
+
   @Transform(({ value }) => value === 'true')
   @IsBoolean()
-  IDENTITY_COOKIE_SECURE: boolean;
+  AUTH_COOKIE_SECURE: boolean;
 
   @IsString()
   @IsNotEmpty()

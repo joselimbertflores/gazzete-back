@@ -1,12 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import cookieParser from 'cookie-parser';
 
+import { EnvironmentVariables } from './config';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService<EnvironmentVariables>);
 
   app.setGlobalPrefix('api', {
     exclude: [
@@ -26,10 +29,13 @@ async function bootstrap() {
     }),
   );
 
-  if (process.env.NODE_ENV === 'development' && process.env.CORS_ORIGIN) {
-    app.enableCors({ origin: process.env.CORS_ORIGIN, credentials: true });
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  const nodeEnv = configService.getOrThrow<'development' | 'production'>('NODE_ENV');
+
+  if (nodeEnv === 'development' && corsOrigin) {
+    app.enableCors({ origin: corsOrigin, credentials: true });
   }
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(configService.getOrThrow<number>('PORT'));
 }
 bootstrap();
