@@ -7,6 +7,24 @@ import { JwksService } from './jwks.service';
 import { AccessTokenPayload } from '../interfaces';
 import { EnvironmentVariables } from 'src/config';
 
+export enum AccessTokenFailureReason {
+  EXPIRED = 'expired',
+  INVALID_HEADER = 'invalid_header',
+  INVALID_TOKEN = 'invalid_token',
+  NOT_ACTIVE = 'not_active',
+  VERIFICATION_FAILED = 'verification_failed',
+}
+
+export class AccessTokenVerificationError extends UnauthorizedException {
+  constructor(
+    public readonly reason: AccessTokenFailureReason,
+    public readonly canAttemptRefresh: boolean,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 @Injectable()
 export class TokenVerifierService {
   constructor(
@@ -19,7 +37,11 @@ export class TokenVerifierService {
       const decoded = jwt.decode(token, { complete: true });
 
       if (!decoded?.header?.kid) {
-        throw new UnauthorizedException('Invalid token header');
+        throw new AccessTokenVerificationError(
+          AccessTokenFailureReason.INVALID_HEADER,
+          false,
+          'Invalid access token header',
+        );
       }
 
       const publicKey = await this.jwksService.getPublicKey(decoded.header.kid);
@@ -32,10 +54,39 @@ export class TokenVerifierService {
         audience,
       }) as AccessTokenPayload;
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      if (error instanceof AccessTokenVerificationError) {
         throw error;
       }
-      throw new UnauthorizedException('Invalid or expired access token');
+
+      if (error instanceof jwt.TokenExpiredError) {
+        throw new AccessTokenVerificationError(
+          AccessTokenFailureReason.EXPIRED,
+          true,
+          'Access token expired',
+        );
+      }
+
+      if (error instanceof jwt.NotBeforeError) {
+        throw new AccessTokenVerificationError(
+          AccessTokenFailureReason.NOT_ACTIVE,
+          false,
+          'Access token is not active',
+        );
+      }
+
+      if (error instanceof jwt.JsonWebTokenError) {
+        throw new AccessTokenVerificationError(
+          AccessTokenFailureReason.INVALID_TOKEN,
+          false,
+          'Invalid access token',
+        );
+      }
+
+      throw new AccessTokenVerificationError(
+        AccessTokenFailureReason.VERIFICATION_FAILED,
+        false,
+        'Access token verification failed',
+      );
     }
   }
 }

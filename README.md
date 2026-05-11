@@ -21,6 +21,10 @@ El backend del sistema **Gaceta** gestiona la lógica de negocio necesaria para 
 - Gestión de metadatos de documentos
 - Exposición de API para integración con el frontend
 
+## Documentación
+
+- Integración SSO/Auth del cliente Gaceta: [docs/architecture/sso-client-integration.md](docs/architecture/sso-client-integration.md)
+
 ---
 
 ## Requisitos previos
