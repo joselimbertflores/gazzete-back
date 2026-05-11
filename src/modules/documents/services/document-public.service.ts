@@ -1,9 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
+
 import { Brackets, Repository } from 'typeorm';
 
 import { DocumentRecord, DocumentRecordStatus } from '../entities';
 import { FilesService } from 'src/modules/files/files.service';
+import { EnvironmentVariables } from 'src/config';
 import { FindPublicDocumentsDto } from '../dtos';
 
 @Injectable()
@@ -11,60 +14,13 @@ export class DocumentPublicService {
   constructor(
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
     private fileService: FilesService,
+    private configService: ConfigService<EnvironmentVariables>,
   ) {}
-
-  // async findAll(query: FindPublicDocumentsDto) {
-  //   const { term, type, year, legalStatus, offset, limit } = query;
-
-  //   const queryBuilder = this.documentRepository.createQueryBuilder('doc');
-
-  //   queryBuilder.where('doc.status = :status', { status: DocumentRecordStatus.PUBLISHED });
-
-  //   if (term) {
-  //     const trimmed = term.trim();
-
-  //     if (/^\d+$/.test(trimmed)) {
-  //       queryBuilder.andWhere('(doc.correlativeNumber = :num OR LOWER(doc.summary) LIKE LOWER(:term))', {
-  //         num: Number(trimmed),
-  //         term: `%${trimmed}%`,
-  //       });
-  //     } else {
-  //       queryBuilder.andWhere('LOWER(doc.summary) LIKE LOWER(:term)', { term: `%${trimmed}%` });
-  //     }
-  //   }
-
-  //   if (type) {
-  //     queryBuilder.andWhere('doc.typeId = :typeId', { typeId: type });
-  //   }
-
-  //   if (year) {
-  //     queryBuilder.andWhere('doc.year = :year', { year });
-  //   }
-
-  //   if (legalStatus) {
-  //     queryBuilder.andWhere('doc.legalStatus = :legalStatus', { legalStatus });
-  //   }
-
-  //   queryBuilder.leftJoinAndSelect('doc.type', 'type');
-
-  //   queryBuilder.orderBy('doc.correlativeNumber', 'DESC');
-
-  //   queryBuilder.skip(offset).take(limit);
-
-  //   const [documents, total] = await queryBuilder.getManyAndCount();
-
-  //   return {
-  //     documents: documents.map((doc) => this.mapDocumentToDto(doc)),
-  //     total,
-  //   };
-  // }
 
   async findAll(query: FindPublicDocumentsDto) {
     const { term, type, year, legalStatus, offset, limit } = query;
 
     const qb = this.documentRepository.createQueryBuilder('doc');
-
-    console.log(term);
 
     qb.where('doc.status = :status', { status: DocumentRecordStatus.PUBLISHED });
 
@@ -93,6 +49,7 @@ export class DocumentPublicService {
     }
 
     qb.leftJoinAndSelect('doc.type', 'type');
+    qb.leftJoinAndSelect('doc.file', 'file');
 
     qb.orderBy('doc.year', 'DESC')
       .addOrderBy('doc.correlativeNumber', 'DESC')
@@ -117,23 +74,7 @@ export class DocumentPublicService {
     if (!doc) {
       throw new NotFoundException(`Document with ID ${id} not found or not published.`);
     }
-
-    return {
-      id: doc.id,
-      code: `${doc.correlativeNumber}/${doc.year}`,
-      summary: doc.summary,
-      legalStatus: doc.legalStatus,
-      publicationDate: doc.publicationDate,
-      promulgationDate: doc.promulgationDate,
-      validUntil: doc.validUntil,
-      type: doc.type?.name,
-      file: {
-        url: this.fileService.buildPublicFileUrl(doc.file?.id),
-        name: doc.file?.originalName,
-        mimeType: doc.file?.mimeType,
-        size: doc.file?.sizeBytes,
-      },
-    };
+    return this.mapDocumentToDto(doc);
   }
 
   async findRecent() {
@@ -143,6 +84,7 @@ export class DocumentPublicService {
       },
       relations: {
         type: true,
+        file: true,
       },
       order: {
         year: 'DESC',
@@ -155,12 +97,56 @@ export class DocumentPublicService {
     return documents.map((doc) => this.mapDocumentToDto(doc));
   }
 
+  async getPublicDocumentFileStream(documentId: string, options?: { countDownload?: boolean }) {
+    const document = await this.documentRepository.findOne({
+      where: {
+        id: documentId,
+        status: DocumentRecordStatus.PUBLISHED,
+      },
+      relations: {
+        file: true,
+      },
+    });
+
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    const result = await this.fileService.getFileStream(document.file.id);
+
+    if (options?.countDownload) {
+      await this.incrementDownloadCount(document.id);
+    }
+    return result;
+  }
+
+  async incrementDownloadCount(id: string) {
+    await this.documentRepository.increment({ id }, 'downloadCount', 1);
+  }
+
   private mapDocumentToDto(doc: DocumentRecord) {
-    const { file, type, ...props } = doc;
     return {
-      ...props,
-      type: doc.type?.name,
-      url: this.fileService.buildPublicFileUrl(doc.fileId),
+      id: doc.id,
+      code: doc.code,
+      summary: doc.summary,
+      legalStatus: doc.legalStatus,
+      publicationDate: doc.publicationDate,
+      promulgationDate: doc.promulgationDate,
+      validUntil: doc.validUntil,
+      downloadCount: doc.downloadCount,
+      type: doc.type.name,
+      file: {
+        url: this.buildPublicDocumentFileUrl(doc.id),
+        name: doc.file.originalName,
+        mimeType: doc.file.mimeType,
+        sizeBytes: doc.file.sizeBytes,
+      },
     };
+  }
+
+  private buildPublicDocumentFileUrl(documentId: string) {
+    const baseUrl = this.configService.getOrThrow<string>('HOST');
+    const url = new URL(`/api/documents-public/${documentId}/file`, baseUrl);
+    return url.toString();
   }
 }

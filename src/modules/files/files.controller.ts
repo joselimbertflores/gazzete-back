@@ -45,6 +45,7 @@ export class FilesController {
 
   @Public()
   @Get(':id')
+  // * Logica en document-public.controller de document module para que pueda incrementar contador
   async serveFile(
     @Res({ passthrough: true }) res: Response,
     @Param('id') id: string,

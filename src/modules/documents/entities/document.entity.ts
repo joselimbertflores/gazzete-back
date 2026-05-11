@@ -83,6 +83,9 @@ export class DocumentRecord {
   })
   legalStatus: DocumentLegalStatus;
 
+  @Column({ type: 'int', default: 0 })
+  downloadCount: number;
+
   @Column({ type: 'date', nullable: true })
   promulgationDate: Date;
 
