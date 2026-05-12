@@ -15,7 +15,7 @@ async function bootstrap() {
     exclude: [
       { path: 'auth/login', method: RequestMethod.GET },
       { path: 'auth/callback', method: RequestMethod.GET },
-      { path: 'files/:id', method: RequestMethod.GET },
+      { path: 'public-documents/:id/file', method: RequestMethod.GET },
     ],
   });
 

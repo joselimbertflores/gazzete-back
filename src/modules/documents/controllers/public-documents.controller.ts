@@ -7,8 +7,8 @@ import { Public } from 'src/modules/auth/decorators';
 import { FindPublicDocumentsDto } from '../dtos';
 
 @Public()
-@Controller('documents-public')
-export class DocumentPublicController {
+@Controller('public-documents')
+export class PublicDocumentsController {
   constructor(
     private readonly documentsPublicService: DocumentPublicService,
     private readonly docTypesService: DocumentTypeService,
@@ -36,7 +36,7 @@ export class DocumentPublicController {
 
   @Public()
   @Get(':id/file')
-  async downloadDocumentFile(
+  async getDocumentFile(
     @Res({ passthrough: true }) res: Response,
     @Param('id') id: string,
     @Query('download') download?: string,

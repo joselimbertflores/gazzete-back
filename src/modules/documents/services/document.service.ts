@@ -26,6 +26,7 @@ import {
   SearchDocumentForRelationDto,
 } from '../dtos';
 import { FilesService } from 'src/modules/files/files.service';
+import { User } from 'src/modules/users/entities';
 
 @Injectable()
 export class DocumentService {
@@ -84,7 +85,7 @@ export class DocumentService {
     };
   }
 
-  async create(dto: CreateDocumentDto) {
+  async create(dto: CreateDocumentDto, currentUser: User) {
     const { typeId, fileId, ...rest } = dto;
     try {
       const document = await this.dataSource.transaction(async (manager) => {
@@ -102,6 +103,7 @@ export class DocumentService {
           file,
           code,
           numberingScope,
+          createdBy: currentUser,
         });
 
         const saved = await manager.save(document);

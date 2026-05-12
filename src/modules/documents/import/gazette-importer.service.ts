@@ -195,17 +195,17 @@ export class GazetteImporterService {
       const storedFile = await this.filesService.createFromPath(filePath, parsed.year);
 
       // 2️⃣ Crear documento (transacción + activa archivo)
-      await this.documentsService.create({
-        typeId,
-        fileId: storedFile.id,
-        summary: parsed.summary,
-        correlativeNumber: parsed.correlativeNumber,
-        ...(parsed.suffix && {
-          suffix: parsed.suffix,
-        }),
-        year: parsed.year,
-        publicationDate: parsed.publicationDate,
-      });
+      // await this.documentsService.create({
+      //   typeId,
+      //   fileId: storedFile.id,
+      //   summary: parsed.summary,
+      //   correlativeNumber: parsed.correlativeNumber,
+      //   ...(parsed.suffix && {
+      //     suffix: parsed.suffix,
+      //   }),
+      //   year: parsed.year,
+      //   publicationDate: parsed.publicationDate,
+      // });
     } catch (error: unknown) {
       // ⚠ duplicado → ignorar silenciosamente
       if (error instanceof QueryFailedError && error['code'] === '23505') {

@@ -8,7 +8,8 @@ import {
   UpdateDocumentDto,
 } from '../dtos';
 import { DocumentService, DocumentTypeService } from '../services';
-import { PaginationParamsDto } from 'src/modules/common';
+import { User } from 'src/modules/users/entities';
+import { GetAuthUser } from 'src/modules/auth/decorators';
 
 @Controller('documents')
 export class DocumentController {
@@ -23,8 +24,8 @@ export class DocumentController {
   }
 
   @Post()
-  create(@Body() body: CreateDocumentDto) {
-    return this.documentService.create(body);
+  create(@Body() body: CreateDocumentDto, @GetAuthUser() user: User) {
+    return this.documentService.create(body, user);
   }
 
   @Patch(':id')

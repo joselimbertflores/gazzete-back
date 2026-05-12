@@ -13,6 +13,7 @@ import {
 
 import { DocumentRelation } from './document-relation.entity';
 import { DocumentRecordType } from './document-type.entity';
+import { User } from 'src/modules/users/entities';
 
 export enum DocumentLegalStatus {
   VALID = 'VALID',
@@ -100,6 +101,13 @@ export class DocumentRecord {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'created_by_id' })
+  createdBy: User;
+
+  @Column({ name: 'created_by_id', nullable: true })
+  createdById: string;
 
   @ManyToOne(() => StoredFile)
   @JoinColumn({ name: 'fileId' })

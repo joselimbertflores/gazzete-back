@@ -146,7 +146,7 @@ export class DocumentPublicService {
 
   private buildPublicDocumentFileUrl(documentId: string) {
     const baseUrl = this.configService.getOrThrow<string>('HOST');
-    const url = new URL(`/api/documents-public/${documentId}/file`, baseUrl);
+    const url = new URL(`/public-documents/${documentId}/file`, baseUrl);
     return url.toString();
   }
 }
