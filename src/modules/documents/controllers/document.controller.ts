@@ -8,8 +8,8 @@ import {
   UpdateDocumentDto,
 } from '../dtos';
 import { DocumentService, DocumentTypeService } from '../services';
-import { User } from 'src/modules/users/entities';
 import { GetAuthUser } from 'src/modules/auth/decorators';
+import { User } from 'src/modules/users/entities';
 
 @Controller('documents')
 export class DocumentController {
@@ -29,13 +29,18 @@ export class DocumentController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: UpdateDocumentDto) {
-    return this.documentService.update(id, body);
+  update(@Param('id') id: string, @Body() body: UpdateDocumentDto, @GetAuthUser() user: User) {
+    return this.documentService.update(id, body, user);
   }
 
   @Get()
   findAll(@Query() params: FindAllDocumentsQueryDto) {
     return this.documentService.findAll(params);
+  }
+
+  @Get(':id')
+  getDocumentDetail(@Param('id') id: string) {
+    return this.documentService.getDocumentDetail(id);
   }
 
   @Get('search-for-relation')

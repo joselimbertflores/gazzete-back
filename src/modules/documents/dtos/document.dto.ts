@@ -1,8 +1,8 @@
-import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsInt, IsUUID, IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
+import { IsDate, IsEnum, IsInt, IsUUID, IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 
-import { DocumentLegalStatus, DocumentRelationType } from '../entities';
+import { DocumentLegalStatus, DocumentRecordStatus, DocumentRelationType } from '../entities';
 import { IsAfterOrEqual, IsBeforeOrEqual } from '../validators';
 import { PaginationParamsDto } from 'src/modules/common';
 export class CreateDocumentDto {
@@ -51,6 +51,10 @@ export class CreateDocumentDto {
 
   @IsUUID()
   fileId: string;
+
+  @IsEnum(DocumentRecordStatus)
+  @IsOptional()
+  status?: DocumentRecordStatus;
 }
 
 export class UpdateDocumentDto extends PartialType(CreateDocumentDto) {}

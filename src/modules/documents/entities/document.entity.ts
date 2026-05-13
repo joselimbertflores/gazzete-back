@@ -87,11 +87,11 @@ export class DocumentRecord {
   @Column({ type: 'int', default: 0 })
   downloadCount: number;
 
-  @Column({ type: 'date', nullable: true })
-  promulgationDate: Date;
-
   @Column({ type: 'date' })
   publicationDate: Date;
+
+  @Column({ type: 'date', nullable: true })
+  promulgationDate: Date;
 
   @Column({ type: 'date', nullable: true })
   validUntil: Date;
@@ -108,6 +108,13 @@ export class DocumentRecord {
 
   @Column({ name: 'created_by_id', nullable: true })
   createdById: string;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'updated_by_id' })
+  updatedBy: User;
+
+  @Column({ name: 'updated_by_id', nullable: true })
+  updatedById?: string | null;
 
   @ManyToOne(() => StoredFile)
   @JoinColumn({ name: 'fileId' })

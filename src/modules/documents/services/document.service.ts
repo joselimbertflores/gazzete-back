@@ -7,6 +7,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 
 import { Brackets, DataSource, QueryFailedError, Repository } from 'typeorm';
 
@@ -39,6 +40,7 @@ export class DocumentService {
   constructor(
     @InjectRepository(DocumentRelation) private docRelationRepository: Repository<DocumentRelation>,
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
+    private configService: ConfigService,
     private fileService: FilesService,
     private dataSource: DataSource,
   ) {}
@@ -118,7 +120,7 @@ export class DocumentService {
     }
   }
 
-  async update(id: string, dto: UpdateDocumentDto) {
+  async update(id: string, dto: UpdateDocumentDto, currentUser: User) {
     const { typeId, fileId, ...rest } = dto;
 
     try {
@@ -149,6 +151,7 @@ export class DocumentService {
         Object.assign(document, rest);
         document.code = this.generateCode(document.correlativeNumber, document.suffix, document.year);
         document.numberingScope = this.buildNumberingScope(document.type, document.year);
+        document.updatedBy = currentUser;
 
         return await manager.save(document);
       });
@@ -156,6 +159,26 @@ export class DocumentService {
     } catch (error: unknown) {
       this.handleDocumentErrors(error);
     }
+  }
+
+  async getDocumentDetail(id: string) {
+    const doc = await this.documentRepository.findOne({
+      where: { id },
+      relations: { type: true, file: true, createdBy: true, updatedBy: true },
+    });
+    if (!doc) throw new NotFoundException(`Document with ${id} not fount`);
+    const { file, type, createdBy, updatedBy, ...props } = doc;
+    return {
+      ...props,
+      file: {
+        url: this.buildPublicDocumentFileUrl(doc.id),
+        size: file.sizeBytes,
+        originalName: file.originalName,
+      },
+      type: type.name,
+      createdBy: createdBy.fullName,
+      updatedBy: updatedBy.fullName,
+    };
   }
 
   async changeStatus(targetDocumentId: string, dto: ChangeDocumentStatusDto) {
@@ -290,14 +313,7 @@ export class DocumentService {
 
   private toDto(doc: DocumentRecord) {
     const { file, ...rest } = doc;
-    return {
-      ...rest,
-      file: {
-        url: this.fileService.buildPublicFileUrl(file.id),
-        name: file.originalName,
-        size: file.sizeBytes,
-      },
-    };
+    return { ...rest, url: this.buildPublicDocumentFileUrl(doc.id) };
   }
 
   private handleDocumentErrors(error: unknown) {
@@ -306,5 +322,11 @@ export class DocumentService {
       throw new ConflictException('El numero correlativo ingresado ya existe.');
     }
     throw new InternalServerErrorException('Error creating document');
+  }
+
+  private buildPublicDocumentFileUrl(documentId: string) {
+    const baseUrl = this.configService.getOrThrow<string>('HOST');
+    const url = new URL(`/public-documents/${documentId}/file`, baseUrl);
+    return url.toString();
   }
 }
