@@ -52,7 +52,7 @@ export class DocumentService {
       .leftJoinAndSelect('document.file', 'file')
       .take(limit)
       .skip(offset)
-      .orderBy('document.createdAt', 'DESC');
+      .orderBy('document.createdAt', 'DESC')
 
     if (term?.trim()) {
       const normalizedTerm = term.trim();
@@ -80,7 +80,6 @@ export class DocumentService {
     }
 
     const [documents, total] = await queryBuilder.getManyAndCount();
-
     return {
       documents: documents.map((doc) => this.toDto(doc)),
       total,
@@ -166,7 +165,9 @@ export class DocumentService {
       where: { id },
       relations: { type: true, file: true, createdBy: true, updatedBy: true },
     });
-    if (!doc) throw new NotFoundException(`Document with ${id} not fount`);
+
+    if (!doc) throw new NotFoundException(`Document with id ${id} not found`);
+
     const { file, type, createdBy, updatedBy, ...props } = doc;
     return {
       ...props,
@@ -174,10 +175,11 @@ export class DocumentService {
         url: this.buildPublicDocumentFileUrl(doc.id),
         size: file.sizeBytes,
         originalName: file.originalName,
+        mimeType: doc.file.mimeType,
       },
       type: type.name,
-      createdBy: createdBy.fullName,
-      updatedBy: updatedBy.fullName,
+      createdBy: createdBy?.fullName,
+      updatedBy: updatedBy?.fullName ?? null,
     };
   }
 
@@ -205,14 +207,14 @@ export class DocumentService {
 
     await this.docRelationRepository.delete({ targetDocumentId });
 
-    const relation = this.docRelationRepository.create({
-      sourceDocumentId,
-      targetDocumentId,
-      relationType,
-      description,
-    });
+    // const relation = this.docRelationRepository.create({
+    //   sourceDocumentId,
+    //   targetDocumentId,
+    //   relationType,
+    //   description,
+    // });
 
-    await this.docRelationRepository.save(relation);
+    // await this.docRelationRepository.save(relation);
 
     const newStatus = this.mapRelationToStatus(relationType);
 
@@ -238,8 +240,8 @@ export class DocumentService {
     if (!relation) return null;
 
     return {
-      type: relation.relationType,
-      description: relation.description,
+      // type: relation.relationType,
+      // description: relation.description,
       source: {
         id: relation.sourceDocument.id,
         code: relation.sourceDocument.code,
@@ -313,7 +315,10 @@ export class DocumentService {
 
   private toDto(doc: DocumentRecord) {
     const { file, ...rest } = doc;
-    return { ...rest, url: this.buildPublicDocumentFileUrl(doc.id) };
+    return {
+      ...rest,
+      file: { url: this.buildPublicDocumentFileUrl(doc.id), name: file.originalName, size: file.sizeBytes },
+    };
   }
 
   private handleDocumentErrors(error: unknown) {

@@ -91,15 +91,15 @@ export class DocumentRecord {
   publicationDate: Date;
 
   @Column({ type: 'date', nullable: true })
-  promulgationDate: Date;
+  promulgationDate: Date | null;
 
   @Column({ type: 'date', nullable: true })
-  validUntil: Date;
+  validUntil: Date | null;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 
   @ManyToOne(() => User, { nullable: true })
@@ -111,7 +111,7 @@ export class DocumentRecord {
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'updated_by_id' })
-  updatedBy: User;
+  updatedBy: User | null;
 
   @Column({ name: 'updated_by_id', nullable: true })
   updatedById?: string | null;

@@ -22,29 +22,28 @@ export class DocumentRelation {
     nullable: false,
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'sourceDocumentId' })
+  @JoinColumn({ name: 'source_document_id' })
   sourceDocument: DocumentRecord;
 
-  @Column()
+  @Column({ name: 'source_document_id' })
   sourceDocumentId: string;
 
   @ManyToOne(() => DocumentRecord)
-  @JoinColumn({ name: 'targetDocumentId' })
+  @JoinColumn({ name: 'target_document_id' })
   targetDocument: DocumentRecord;
 
-  @Column()
+  @Column({ name: 'target_document_id' })
   targetDocumentId: string;
 
   @Column({
     type: 'enum',
     enum: DocumentRelationType,
   })
-  relationType: DocumentRelationType;
+  type: DocumentRelationType;
 
   @Column({ type: 'text', nullable: true })
-  description: string;
+  note: string | null;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
-  
 }
