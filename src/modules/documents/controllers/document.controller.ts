@@ -1,12 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 
-import {
-  ChangeDocumentStatusDto,
-  CreateDocumentDto,
-  FindAllDocumentsQueryDto,
-  SearchDocumentForRelationDto,
-  UpdateDocumentDto,
-} from '../dtos';
+import { CreateDocumentDto, FindAllDocumentsQueryDto, UpdateDocumentDto } from '../dtos';
 import { DocumentService, DocumentTypeService } from '../services';
 import { GetAuthUser } from 'src/modules/auth/decorators';
 import { User } from 'src/modules/users/entities';
@@ -41,20 +35,5 @@ export class DocumentController {
   @Get(':id')
   getDocumentDetail(@Param('id') id: string) {
     return this.documentService.getDocumentDetail(id);
-  }
-
-  @Get('search-for-relation')
-  searchForRelation(@Query() queryParams: SearchDocumentForRelationDto) {
-    return this.documentService.searchRelationCandidates(queryParams);
-  }
-
-  @Patch(':id/status')
-  changeStatus(@Param('id') id: string, @Body() dto: ChangeDocumentStatusDto) {
-    return this.documentService.changeStatus(id, dto);
-  }
-
-  @Get(':id/relation')
-  findRelationByTarget(@Param('id') id: string) {
-    return this.documentService.findRelationByTarget(id);
   }
 }

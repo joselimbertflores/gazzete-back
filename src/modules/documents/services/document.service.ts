@@ -16,29 +16,15 @@ import {
   DocumentRelation,
   DocumentRecordType,
   DocumentLegalStatus,
-  DocumentRelationType,
   DocumentNumberingMode,
 } from '../entities';
-import {
-  UpdateDocumentDto,
-  CreateDocumentDto,
-  ChangeDocumentStatusDto,
-  FindAllDocumentsQueryDto,
-  SearchDocumentForRelationDto,
-} from '../dtos';
+import { UpdateDocumentDto, CreateDocumentDto, FindAllDocumentsQueryDto } from '../dtos';
 import { FilesService } from 'src/modules/files/files.service';
 import { User } from 'src/modules/users/entities';
 
 @Injectable()
 export class DocumentService {
-  private readonly relationToStatusMap: Partial<Record<DocumentRelationType, DocumentLegalStatus>> = {
-    [DocumentRelationType.MODIFIES]: DocumentLegalStatus.MODIFIED,
-    [DocumentRelationType.ABROGATES]: DocumentLegalStatus.ABROGATED,
-    [DocumentRelationType.DEROGATES]: DocumentLegalStatus.DEROGATED,
-  };
-
   constructor(
-    @InjectRepository(DocumentRelation) private docRelationRepository: Repository<DocumentRelation>,
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
     private configService: ConfigService,
     private fileService: FilesService,
@@ -52,7 +38,7 @@ export class DocumentService {
       .leftJoinAndSelect('document.file', 'file')
       .take(limit)
       .skip(offset)
-      .orderBy('document.createdAt', 'DESC')
+      .orderBy('document.createdAt', 'DESC');
 
     if (term?.trim()) {
       const normalizedTerm = term.trim();
@@ -183,122 +169,6 @@ export class DocumentService {
     };
   }
 
-  async changeStatus(targetDocumentId: string, dto: ChangeDocumentStatusDto) {
-    const { sourceDocumentId, relationType, description } = dto;
-
-    if (targetDocumentId === sourceDocumentId) {
-      throw new BadRequestException('Un documento no puede afectarse a sí mismo.');
-    }
-
-    const [target, source] = await Promise.all([
-      this.documentRepository.findOne({ where: { id: targetDocumentId } }),
-      this.documentRepository.findOne({ where: { id: sourceDocumentId } }),
-    ]);
-
-    if (!target || !source) throw new NotFoundException('Documento no encontrado.');
-
-    if (target.legalStatus !== DocumentLegalStatus.VALID) {
-      throw new BadRequestException('El documento a modificar debe estar vigente.');
-    }
-
-    if (source.legalStatus !== DocumentLegalStatus.VALID) {
-      throw new BadRequestException('El documento que provoca el cambio debe estar vigente.');
-    }
-
-    await this.docRelationRepository.delete({ targetDocumentId });
-
-    // const relation = this.docRelationRepository.create({
-    //   sourceDocumentId,
-    //   targetDocumentId,
-    //   relationType,
-    //   description,
-    // });
-
-    // await this.docRelationRepository.save(relation);
-
-    const newStatus = this.mapRelationToStatus(relationType);
-
-    if (newStatus) {
-      await this.documentRepository.update(targetDocumentId, { legalStatus: newStatus });
-    }
-
-    return {
-      ok: true,
-      message: 'Estado actualizado correctamente.',
-      newStatus: newStatus,
-    };
-  }
-
-  async findRelationByTarget(targetId: string) {
-    const relation = await this.docRelationRepository.findOne({
-      where: { targetDocumentId: targetId },
-      relations: {
-        sourceDocument: true,
-      },
-    });
-
-    if (!relation) return null;
-
-    return {
-      // type: relation.relationType,
-      // description: relation.description,
-      source: {
-        id: relation.sourceDocument.id,
-        code: relation.sourceDocument.code,
-      },
-    };
-  }
-
-  async searchRelationCandidates({ term, sourceDocumentId }: SearchDocumentForRelationDto) {
-    const normalizedTerm = term.trim();
-
-    const queryBuilder = this.documentRepository
-      .createQueryBuilder('document')
-      .leftJoinAndSelect('document.type', 'type')
-      .select([
-        'document.id',
-        'document.summary',
-        'document.correlativeNumber',
-        'document.year',
-        'document.publicationDate',
-        'document.legalStatus',
-        'type.name',
-      ])
-      .orderBy('document.publicationDate', 'DESC')
-      .take(10);
-
-    if (sourceDocumentId) {
-      queryBuilder.andWhere('document.id != :currentDocumentId', {
-        sourceDocumentId,
-      });
-    }
-
-    queryBuilder.andWhere(
-      new Brackets((qb) => {
-        if (/^\d+$/.test(normalizedTerm)) {
-          qb.where('document.correlativeNumber = :correlativeNumber', { correlativeNumber: Number(normalizedTerm) });
-        } else {
-          qb.where('document.summary ILIKE :summary', { summary: `%${normalizedTerm}%` });
-        }
-      }),
-    );
-
-    const documents = await queryBuilder.getMany();
-
-    return documents.map((doc) => ({
-      id: doc.id,
-      year: doc.year,
-      code: doc.code,
-      legalStatus: doc.legalStatus,
-      publicationDate: doc.publicationDate,
-      correlativeNumber: doc.correlativeNumber,
-      type: {
-        id: doc.type.id,
-        name: doc.type.name,
-      },
-    }));
-  }
-
   private generateCode(correlativeNumber: number, suffix: string | null, year: number) {
     const normalizedSuffix = suffix?.trim().toUpperCase();
     const formattedNumber = correlativeNumber.toString().padStart(3, '0');
@@ -307,10 +177,6 @@ export class DocumentService {
 
   private buildNumberingScope(type: DocumentRecordType, year: number): string {
     return type.numberingMode === DocumentNumberingMode.GLOBAL ? 'GLOBAL' : String(year);
-  }
-
-  private mapRelationToStatus(type: DocumentRelationType): DocumentLegalStatus | null {
-    return this.relationToStatusMap[type] ?? null;
   }
 
   private toDto(doc: DocumentRecord) {

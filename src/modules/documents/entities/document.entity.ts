@@ -125,4 +125,7 @@ export class DocumentRecord {
 
   @OneToMany(() => DocumentRelation, (relation) => relation.sourceDocument)
   outgoingRelations: DocumentRelation[];
+
+  @OneToMany(() => DocumentRelation, (relation) => relation.targetDocument)
+  incomingRelations: DocumentRelation[];
 }

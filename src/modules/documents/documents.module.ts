@@ -1,16 +1,27 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { DocumentController, PublicDocumentsController, DocumentTypeController } from './controllers';
-import { DocumentPublicService, DocumentService, DocumentTypeService } from './services';
+import {
+  DocumentController,
+  PublicDocumentsController,
+  DocumentTypeController,
+  DocumentRelationController,
+} from './controllers';
+import { DocumentPublicService, DocumentRelationService, DocumentService, DocumentTypeService } from './services';
 import { DocumentRecord, DocumentRelation, DocumentRecordType } from './entities';
 import { FilesModule } from '../files/files.module';
 import { GazetteImporterService } from './import/gazette-importer.service';
 
 @Module({
-  controllers: [DocumentTypeController, DocumentController, PublicDocumentsController],
+  controllers: [DocumentTypeController, DocumentController, DocumentRelationController, PublicDocumentsController],
   imports: [TypeOrmModule.forFeature([DocumentRecord, DocumentRelation, DocumentRecordType]), FilesModule],
-  providers: [DocumentTypeService, DocumentService, DocumentPublicService, GazetteImporterService],
+  providers: [
+    DocumentService,
+    DocumentTypeService,
+    DocumentPublicService,
+    DocumentRelationService,
+    GazetteImporterService,
+  ],
   exports: [DocumentTypeService],
 })
 export class DocumentsModule {}
