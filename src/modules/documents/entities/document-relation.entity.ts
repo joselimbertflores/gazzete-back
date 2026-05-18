@@ -1,4 +1,14 @@
-import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Check,
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 import { DocumentRecord } from './document.entity';
 
@@ -10,8 +20,6 @@ export enum DocumentRelationType {
 
 @Entity('document_relations')
 @Check(`"source_document_id" <> "target_document_id"`)
-@Index(['sourceDocumentId'])
-@Index(['targetDocumentId'], { unique: true })
 export class DocumentRelation {
   @PrimaryGeneratedColumn()
   id: number;
@@ -30,18 +38,14 @@ export class DocumentRelation {
   @Column({ name: 'source_document_id' })
   sourceDocumentId: string;
 
-  /**
-   * Documento afectado.
-   * Ejemplo: A MODIFIES B => B es target.
-   */
-  @ManyToOne(() => DocumentRecord, (document) => document.incomingRelations, {
+  @OneToOne(() => DocumentRecord, (document) => document.incomingRelation, {
     nullable: false,
     onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'target_document_id' })
   targetDocument: DocumentRecord;
 
-  @Column({ name: 'target_document_id' })
+  @Column({ name: 'target_document_id', type: 'uuid' })
   targetDocumentId: string;
 
   @Column({
@@ -55,4 +59,7 @@ export class DocumentRelation {
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date;
 }

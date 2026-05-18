@@ -9,6 +9,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   PrimaryGeneratedColumn,
+  OneToOne,
 } from 'typeorm';
 
 import { DocumentRelation } from './document-relation.entity';
@@ -126,6 +127,6 @@ export class DocumentRecord {
   @OneToMany(() => DocumentRelation, (relation) => relation.sourceDocument)
   outgoingRelations: DocumentRelation[];
 
-  @OneToMany(() => DocumentRelation, (relation) => relation.targetDocument)
-  incomingRelations: DocumentRelation[];
+  @OneToOne(() => DocumentRelation, (relation) => relation.targetDocument)
+  incomingRelation: DocumentRelation | null;
 }

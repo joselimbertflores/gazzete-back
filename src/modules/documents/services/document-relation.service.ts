@@ -23,18 +23,26 @@ export class DocumentRelationService {
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(DocumentRecord) private docRepository: Repository<DocumentRecord>,
-    @InjectRepository(DocumentRelation) private docRelationRespository: Repository<DocumentRelation>,
+    @InjectRepository(DocumentRelation) private relationRepository: Repository<DocumentRelation>,
   ) {}
 
   async save(targetId: string, dto: SaveDocumentRelationDto) {
     return this.dataSource.transaction(async (manager) => {
-      const target = await manager.findOne(DocumentRecord, { where: { id: targetId } });
+      const target = await manager.findOne(DocumentRecord, {
+        where: { id: targetId },
+        relations: { type: true },
+        select: { type: { id: true, name: true } },
+      });
 
       if (!target) {
         throw new NotFoundException('Document not found');
       }
 
-      const source = await manager.findOne(DocumentRecord, { where: { id: dto.sourceDocumentId } });
+      const source = await manager.findOne(DocumentRecord, {
+        where: { id: dto.sourceDocumentId },
+        relations: { type: true },
+        select: { type: { id: true, name: true } },
+      });
 
       if (!source) {
         throw new BadRequestException('Invalid source document');
@@ -45,7 +53,7 @@ export class DocumentRelationService {
       }
 
       let relation = await manager.findOne(DocumentRelation, {
-        where: { targetDocument: target },
+        where: { targetDocumentId: target.id },
       });
 
       if (!relation) {
@@ -54,23 +62,29 @@ export class DocumentRelationService {
         });
       }
 
-      relation.sourceDocumentId = source.id;
+      relation.sourceDocument = source;
       relation.type = dto.type;
       relation.note = dto.note ?? null;
 
-      const saved = await manager.save(relation);
+      await manager.save(relation);
 
-      target.legalStatus = this.mapRelationTypeToLegalStatus(dto.type);
+      target.legalStatus = RELATION_TYPE_TO_LEGAL_STATUS[dto.type];
 
       await manager.save(target);
 
-      return this.toDto(saved);
+      return { message: 'Relation saved successfully', targetLegalStatus: target.legalStatus };
     });
   }
 
   async remove(targetDocumentId: string) {
     return this.dataSource.transaction(async (manager) => {
-      const target = await this.getDocumentOrFail(manager, targetDocumentId);
+      const target = await manager.findOne(DocumentRecord, {
+        where: { id: targetDocumentId },
+      });
+
+      if (!target) {
+        throw new NotFoundException('Document not found');
+      }
 
       const relation = await manager.findOne(DocumentRelation, {
         where: { targetDocumentId: target.id },
@@ -85,12 +99,12 @@ export class DocumentRelationService {
       target.legalStatus = DocumentLegalStatus.VALID;
       await manager.save(target);
 
-      return { removed: true };
+      return { message: 'Relation removed successfully', targetLegalStatus: target.legalStatus };
     });
   }
-
+  
   async findByTarget(targetId: string) {
-    const relation = await this.docRelationRespository
+    const relation = await this.relationRepository
       .createQueryBuilder('relation')
       .innerJoin('relation.sourceDocument', 'source')
       .innerJoin('source.type', 'sourceType')
@@ -100,15 +114,14 @@ export class DocumentRelationService {
         'relation.note',
         'source.id',
         'source.code',
+        'source.summary',
         'sourceType.id',
         'sourceType.name',
       ])
       .where('relation.targetDocumentId = :targetId', { targetId })
       .getOne();
 
-    if (!relation) return null;
-
-    return this.toDto(relation);
+    return relation ? this.toDto(relation) : null;
   }
 
   async findCandidates(query: SearchRelationCandidatesDto) {
@@ -160,22 +173,6 @@ export class DocumentRelationService {
     }));
   }
 
-  private async getDocumentOrFail(manager: EntityManager, id: string) {
-    const document = await manager.findOne(DocumentRecord, {
-      where: { id },
-    });
-
-    if (!document) {
-      throw new NotFoundException('Document not found');
-    }
-
-    return document;
-  }
-
-  private mapRelationTypeToLegalStatus(type: DocumentRelationType): DocumentLegalStatus {
-    return RELATION_TYPE_TO_LEGAL_STATUS[type];
-  }
-
   private toDto(relation: DocumentRelation) {
     return {
       id: relation.id,
@@ -185,6 +182,7 @@ export class DocumentRelationService {
         id: relation.sourceDocument.id,
         code: relation.sourceDocument.code,
         typeName: relation.sourceDocument.type.name,
+        summary: relation.sourceDocument.summary,
       },
     };
   }

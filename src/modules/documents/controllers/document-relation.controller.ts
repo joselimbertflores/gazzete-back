@@ -13,13 +13,12 @@ export class DocumentRelationController {
   }
 
   @Get(':targetId')
-  findOne(@Param('targetId') targetId: string) {
+  findByTarget(@Param('targetId') targetId: string) {
     return this.relationsService.findByTarget(targetId);
   }
 
   @Put(':targetId')
   save(@Param('targetId') targetId: string, @Body() dto: SaveDocumentRelationDto) {
-    console.log(dto);
     return this.relationsService.save(targetId, dto);
   }
 
