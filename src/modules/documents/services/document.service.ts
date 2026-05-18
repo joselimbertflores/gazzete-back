@@ -149,23 +149,63 @@ export class DocumentService {
   async getDocumentDetail(id: string) {
     const doc = await this.documentRepository.findOne({
       where: { id },
-      relations: { type: true, file: true, createdBy: true, updatedBy: true },
+      relations: {
+        type: true,
+        file: true,
+        createdBy: true,
+        updatedBy: true,
+        incomingRelation: {
+          sourceDocument: {
+            type: true,
+          },
+        },
+        outgoingRelations: {
+          targetDocument: {
+            type: true,
+          },
+        },
+      },
     });
 
     if (!doc) throw new NotFoundException(`Document with id ${id} not found`);
 
-    const { file, type, createdBy, updatedBy, ...props } = doc;
+    const { file, type, createdBy, updatedBy, incomingRelation, outgoingRelations, ...props } = doc;
+
     return {
       ...props,
       file: {
         url: this.buildPublicDocumentFileUrl(doc.id),
         size: file.sizeBytes,
         originalName: file.originalName,
-        mimeType: doc.file.mimeType,
+        mimeType: file.mimeType,
       },
       type: type.name,
       createdBy: createdBy?.fullName,
       updatedBy: updatedBy?.fullName ?? null,
+      incomingRelation: incomingRelation
+        ? {
+            id: incomingRelation.id,
+            type: incomingRelation.type,
+            note: incomingRelation.note,
+            sourceDocument: {
+              id: incomingRelation.sourceDocument.id,
+              code: incomingRelation.sourceDocument.code,
+              typeName: incomingRelation.sourceDocument.type.name,
+              summary: incomingRelation.sourceDocument.summary,
+            },
+          }
+        : null,
+      outgoingRelations: outgoingRelations.map((relation) => ({
+        id: relation.id,
+        type: relation.type,
+        note: relation.note,
+        targetDocument: {
+          id: relation.targetDocument.id,
+          code: relation.targetDocument.code,
+          typeName: relation.targetDocument.type.name,
+          summary: relation.targetDocument.summary,
+        },
+      })),
     };
   }
 
