@@ -15,6 +15,9 @@ export class DocumentRecordType {
   @Column({ unique: true })
   name: string;
 
+  @Column({ type: 'text', nullable: true })
+  description?: string;
+
   @Column({
     type: 'enum',
     enum: DocumentNumberingMode,

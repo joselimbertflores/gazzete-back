@@ -2,7 +2,7 @@ import { Controller, Get, Param, Query, Res, StreamableFile } from '@nestjs/comm
 
 import type { Response } from 'express';
 
-import { DocumentPublicService, DocumentTypeService } from '../services';
+import { PublicDocumentsService, DocumentTypeService } from '../services';
 import { Public } from 'src/modules/auth/decorators';
 import { FindPublicDocumentsDto } from '../dtos';
 
@@ -10,29 +10,9 @@ import { FindPublicDocumentsDto } from '../dtos';
 @Controller('public-documents')
 export class PublicDocumentsController {
   constructor(
-    private readonly documentsPublicService: DocumentPublicService,
+    private readonly publicDocumentsService: PublicDocumentsService,
     private readonly docTypesService: DocumentTypeService,
   ) {}
-
-  @Get()
-  findAll(@Query() queryParams: FindPublicDocumentsDto) {
-    return this.documentsPublicService.findAll(queryParams);
-  }
-
-  @Get('types')
-  getTypes() {
-    return this.docTypesService.getActiveTypes();
-  }
-
-  @Get('recent')
-  getRecent() {
-    return this.documentsPublicService.findRecent();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.documentsPublicService.findOne(id);
-  }
 
   @Public()
   @Get(':id/file')
@@ -43,7 +23,7 @@ export class PublicDocumentsController {
   ) {
     const isDownload = download === 'true';
 
-    const { stream, file } = await this.documentsPublicService.getPublicDocumentFileStream(id, {
+    const { stream, file } = await this.publicDocumentsService.getPublicDocumentFileStream(id, {
       countDownload: isDownload,
     });
 
@@ -55,5 +35,40 @@ export class PublicDocumentsController {
     res.setHeader('Cache-Control', 'public, max-age=86400');
 
     return new StreamableFile(stream);
+  }
+
+  @Get('landing')
+  getLandingData() {
+    return this.publicDocumentsService.getLandingData();
+  }
+
+  // @Get()
+  // findPublicDocuments(@Query() query: PublicDocumentListQueryDto) {
+  //   return this.publicDocumentsService.findPublicDocuments(query);
+  // }
+
+  // @Get(':id')
+  // getPublicDocumentDetail(@Param('id', ParseUUIDPipe) id: string) {
+  //   return this.publicDocumentsService.getPublicDocumentDetail(id);
+  // }
+
+  @Get()
+  findAll(@Query() queryParams: FindPublicDocumentsDto) {
+    return this.publicDocumentsService.findAll(queryParams);
+  }
+
+  @Get('types')
+  getTypes() {
+    return this.docTypesService.getActiveTypes();
+  }
+
+  @Get('recent')
+  getRecent() {
+    return this.publicDocumentsService.findRecent();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.publicDocumentsService.findOne(id);
   }
 }

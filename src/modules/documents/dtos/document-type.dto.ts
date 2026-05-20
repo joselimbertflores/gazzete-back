@@ -1,11 +1,16 @@
 import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { DocumentNumberingMode } from '../entities';
 import { PartialType } from '@nestjs/mapped-types';
+
+import { DocumentNumberingMode } from '../entities';
 
 export class CreateDocumentTypeDto {
   @IsString()
   @IsNotEmpty()
   name: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
 
   @IsEnum(DocumentNumberingMode)
   numberingMode: DocumentNumberingMode;

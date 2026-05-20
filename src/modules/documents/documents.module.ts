@@ -7,7 +7,7 @@ import {
   DocumentTypeController,
   DocumentRelationController,
 } from './controllers';
-import { DocumentPublicService, DocumentRelationService, DocumentService, DocumentTypeService } from './services';
+import { PublicDocumentsService, DocumentRelationService, DocumentService, DocumentTypeService } from './services';
 import { DocumentRecord, DocumentRelation, DocumentRecordType } from './entities';
 import { FilesModule } from '../files/files.module';
 import { GazetteImporterService } from './import/gazette-importer.service';
@@ -18,7 +18,7 @@ import { GazetteImporterService } from './import/gazette-importer.service';
   providers: [
     DocumentService,
     DocumentTypeService,
-    DocumentPublicService,
+    PublicDocumentsService,
     DocumentRelationService,
     GazetteImporterService,
   ],

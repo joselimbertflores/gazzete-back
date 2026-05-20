@@ -1,5 +1,17 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsDate, IsEnum, IsInt, IsUUID, IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsDate,
+  IsEnum,
+  IsInt,
+  IsUUID,
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 import { DocumentLegalStatus, DocumentRecordStatus, DocumentRelationType } from '../entities';
@@ -55,6 +67,10 @@ export class CreateDocumentDto {
   @IsEnum(DocumentRecordStatus)
   @IsOptional()
   status?: DocumentRecordStatus;
+
+  @IsBoolean()
+  @IsOptional()
+  isFeatured?: boolean;
 }
 
 export class UpdateDocumentDto extends PartialType(CreateDocumentDto) {}

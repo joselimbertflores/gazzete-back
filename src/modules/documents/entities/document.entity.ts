@@ -3,13 +3,13 @@ import {
   Index,
   Column,
   Entity,
+  OneToOne,
   ManyToOne,
   OneToMany,
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
   PrimaryGeneratedColumn,
-  OneToOne,
 } from 'typeorm';
 
 import { DocumentRelation } from './document-relation.entity';
@@ -96,6 +96,9 @@ export class DocumentRecord {
 
   @Column({ type: 'date', nullable: true })
   validUntil: Date | null;
+
+  @Column({ default: false })
+  isFeatured: boolean;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
