@@ -52,6 +52,11 @@ export class PublicDocumentsController {
   //   return this.publicDocumentsService.getPublicDocumentDetail(id);
   // }
 
+  @Get('detail/:id')
+  getPublicDocumentDetail(@Param('id') id: string) {
+    return this.publicDocumentsService.getPublicDocumentDetail(id);
+  }
+
   @Get()
   findAll(@Query() queryParams: FindPublicDocumentsDto) {
     return this.publicDocumentsService.findAll(queryParams);
@@ -59,16 +64,7 @@ export class PublicDocumentsController {
 
   @Get('types')
   getTypes() {
-    return this.docTypesService.getActiveTypes();
-  }
-
-  @Get('recent')
-  getRecent() {
-    return this.publicDocumentsService.findRecent();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.publicDocumentsService.findOne(id);
+    return [];
+    // return this.docTypesService.getActiveTypes();
   }
 }
