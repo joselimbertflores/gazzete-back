@@ -18,12 +18,37 @@ export class PublicDocumentsService {
     private fileService: FilesService,
   ) {}
 
+  async getPublicDocumentFileStream(documentId: string, options?: { countDownload?: boolean }) {
+    const document = await this.docRepository.findOne({
+      where: {
+        id: documentId,
+        status: DocumentRecordStatus.PUBLISHED,
+      },
+      relations: {
+        file: true,
+      },
+    });
+
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    const result = await this.fileService.getFileStream(document.file.id);
+
+    if (options?.countDownload) {
+      await this.incrementDownloadCount(document.id);
+    }
+    return result;
+  }
+
   async findAll(query: FindPublicDocumentsDto) {
     const { term, type, year, legalStatus, offset, limit } = query;
 
     const qb = this.docRepository.createQueryBuilder('doc');
 
-    qb.where('doc.status = :status', { status: DocumentRecordStatus.PUBLISHED });
+    qb.where('doc.status = :status', {
+      status: DocumentRecordStatus.PUBLISHED,
+    });
 
     if (term?.trim()) {
       const normalizedTerm = term.trim();
@@ -52,6 +77,19 @@ export class PublicDocumentsService {
     qb.leftJoinAndSelect('doc.type', 'type');
     qb.leftJoinAndSelect('doc.file', 'file');
 
+    qb.leftJoin('doc.incomingRelation', 'incomingRelation');
+    qb.leftJoin('incomingRelation.sourceDocument', 'sourceDocument', 'sourceDocument.status = :publishedStatus', {
+      publishedStatus: DocumentRecordStatus.PUBLISHED,
+    });
+    qb.leftJoin('sourceDocument.type', 'sourceDocumentType');
+    qb.addSelect([
+      'incomingRelation.type',
+      'incomingRelation.note',
+      'sourceDocument.id',
+      'sourceDocument.code',
+      'sourceDocumentType.name',
+    ]);
+
     qb.orderBy('doc.year', 'DESC')
       .addOrderBy('doc.correlativeNumber', 'DESC')
       .addOrderBy('doc.suffix', 'DESC', 'NULLS LAST');
@@ -66,22 +104,14 @@ export class PublicDocumentsService {
     };
   }
 
-  async getPublicDocumentDetail(id: string) {
+  async getDocumentDetail(id: string) {
     const doc = await this.docRepository.findOne({
       where: { id, status: DocumentRecordStatus.PUBLISHED },
       relations: {
         type: true,
         file: true,
-        outgoingRelations: {
-          targetDocument: {
-            type: true,
-          },
-        },
-        incomingRelation: {
-          sourceDocument: {
-            type: true,
-          },
-        },
+        outgoingRelations: { targetDocument: { type: true } },
+        incomingRelation: { sourceDocument: { type: true } },
       },
     });
 
@@ -89,30 +119,48 @@ export class PublicDocumentsService {
       throw new NotFoundException(`Document with ID ${id} not found or not published.`);
     }
 
-    return this.mapDocumentDetailToDto(doc);
-  }
+    const { type, file, outgoingRelations, incomingRelation, ...props } = doc;
 
-  async getPublicDocumentFileStream(documentId: string, options?: { countDownload?: boolean }) {
-    const document = await this.docRepository.findOne({
-      where: {
-        id: documentId,
-        status: DocumentRecordStatus.PUBLISHED,
+    return {
+      id: props.id,
+      code: props.code,
+      summary: props.summary,
+      validUntil: props.validUntil,
+      legalStatus: props.legalStatus,
+      downloadCount: props.downloadCount,
+      publicationDate: props.publicationDate,
+      promulgationDate: props.promulgationDate,
+      typeName: type.name,
+      file: {
+        url: this.buildPublicDocumentFileUrl(doc.id),
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
       },
       relations: {
-        file: true,
+        outgoing: outgoingRelations.map((relation) => ({
+          relationType: relation.type,
+          note: relation.note,
+          document: {
+            id: doc.id,
+            code: doc.code,
+            summary: doc.summary,
+            typeName: doc.type.name,
+          },
+        })),
+        incoming: incomingRelation
+          ? {
+              relationType: incomingRelation.type,
+              note: incomingRelation.note,
+              document: {
+                id: incomingRelation.sourceDocument.id,
+                code: incomingRelation.sourceDocument.code,
+                summary: incomingRelation.sourceDocument.summary,
+                typeName: incomingRelation.sourceDocument.type.name,
+              },
+            }
+          : null,
       },
-    });
-
-    if (!document) {
-      throw new NotFoundException('Document not found');
-    }
-
-    const result = await this.fileService.getFileStream(document.file.id);
-
-    if (options?.countDownload) {
-      await this.incrementDownloadCount(document.id);
-    }
-    return result;
+    };
   }
 
   async incrementDownloadCount(id: string) {
@@ -129,20 +177,25 @@ export class PublicDocumentsService {
       promulgationDate: doc.promulgationDate,
       validUntil: doc.validUntil,
       downloadCount: doc.downloadCount,
-      type: doc.type.name,
+      typeName: doc.type.name,
       file: {
         url: this.buildPublicDocumentFileUrl(doc.id),
         name: doc.file.originalName,
         mimeType: doc.file.mimeType,
         sizeBytes: doc.file.sizeBytes,
       },
+      incomingRelation: doc.incomingRelation?.sourceDocument
+        ? {
+            relationType: doc.incomingRelation.type,
+            note: doc.incomingRelation.note,
+            document: {
+              id: doc.incomingRelation.sourceDocument.id,
+              code: doc.incomingRelation.sourceDocument.code,
+              typeName: doc.incomingRelation.sourceDocument.type.name,
+            },
+          }
+        : null,
     };
-  }
-
-  private buildPublicDocumentFileUrl(documentId: string) {
-    const baseUrl = this.configService.getOrThrow<string>('HOST');
-    const url = new URL(`/public-documents/${documentId}/file`, baseUrl);
-    return url.toString();
   }
 
   async getLandingData() {
@@ -263,6 +316,12 @@ export class PublicDocumentsService {
     };
   }
 
+  private buildPublicDocumentFileUrl(documentId: string) {
+    const baseUrl = this.configService.getOrThrow<string>('HOST');
+    const url = new URL(`/public-documents/${documentId}/file`, baseUrl);
+    return url.toString();
+  }
+
   private toPublicDocumentCard(doc: DocumentRecord) {
     return {
       id: doc.id,
@@ -271,58 +330,6 @@ export class PublicDocumentsService {
       typeName: doc.type?.name,
       year: doc.year,
       publicationDate: doc.publicationDate,
-      legalStatus: doc.legalStatus,
-    };
-  }
-
-  private mapDocumentDetailToDto(doc: DocumentRecord) {
-    const { type, file, outgoingRelations, incomingRelation, ...props } = doc;
-
-    return {
-      id: props.id,
-      code: props.code,
-      summary: props.summary,
-      validUntil: props.validUntil,
-      legalStatus: props.legalStatus,
-      downloadCount: props.downloadCount,
-      publicationDate: props.publicationDate,
-      promulgationDate: props.promulgationDate,
-
-      typeName: type.name,
-
-      file: file
-        ? {
-            url: this.buildPublicDocumentFileUrl(doc.id),
-            downloadUrl: this.buildPublicDocumentFileUrl(doc.id),
-            mimeType: file.mimeType,
-            sizeBytes: file.sizeBytes,
-          }
-        : null,
-
-      relations: {
-        outgoing:
-          outgoingRelations?.map((relation) => ({
-            relationType: relation.type,
-            note: relation.note,
-            document: this.mapRelatedDocumentToDto(relation.targetDocument),
-          })) ?? [],
-
-        incoming: incomingRelation
-          ? {
-              relationType: incomingRelation.type,
-              note: incomingRelation.note,
-              document: this.mapRelatedDocumentToDto(incomingRelation.sourceDocument),
-            }
-          : null,
-      },
-    };
-  }
-
-  private mapRelatedDocumentToDto(doc: DocumentRecord) {
-    return {
-      id: doc.id,
-      code: doc.code,
-      typeName: doc.type.name,
       legalStatus: doc.legalStatus,
     };
   }

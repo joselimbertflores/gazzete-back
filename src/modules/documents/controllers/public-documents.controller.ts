@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Res, StreamableFile } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query, Res, StreamableFile } from '@nestjs/common';
 
 import type { Response } from 'express';
 
@@ -42,19 +42,9 @@ export class PublicDocumentsController {
     return this.publicDocumentsService.getLandingData();
   }
 
-  // @Get()
-  // findPublicDocuments(@Query() query: PublicDocumentListQueryDto) {
-  //   return this.publicDocumentsService.findPublicDocuments(query);
-  // }
-
-  // @Get(':id')
-  // getPublicDocumentDetail(@Param('id', ParseUUIDPipe) id: string) {
-  //   return this.publicDocumentsService.getPublicDocumentDetail(id);
-  // }
-
-  @Get('detail/:id')
-  getPublicDocumentDetail(@Param('id') id: string) {
-    return this.publicDocumentsService.getPublicDocumentDetail(id);
+  @Get('types')
+  getTypes() {
+    return this.docTypesService.getActiveTypes();
   }
 
   @Get()
@@ -62,9 +52,8 @@ export class PublicDocumentsController {
     return this.publicDocumentsService.findAll(queryParams);
   }
 
-  @Get('types')
-  getTypes() {
-    return [];
-    // return this.docTypesService.getActiveTypes();
+  @Get('detail/:id')
+  getPublicDocumentDetail(@Param('id', ParseUUIDPipe) id: string) {
+    return this.publicDocumentsService.getDocumentDetail(id);
   }
 }
