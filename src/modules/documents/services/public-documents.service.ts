@@ -167,43 +167,12 @@ export class PublicDocumentsService {
     await this.docRepository.increment({ id }, 'downloadCount', 1);
   }
 
-  private mapDocumentToDto(doc: DocumentRecord) {
-    return {
-      id: doc.id,
-      code: doc.code,
-      summary: doc.summary,
-      legalStatus: doc.legalStatus,
-      publicationDate: doc.publicationDate,
-      promulgationDate: doc.promulgationDate,
-      validUntil: doc.validUntil,
-      downloadCount: doc.downloadCount,
-      typeName: doc.type.name,
-      file: {
-        url: this.buildPublicDocumentFileUrl(doc.id),
-        name: doc.file.originalName,
-        mimeType: doc.file.mimeType,
-        sizeBytes: doc.file.sizeBytes,
-      },
-      incomingRelation: doc.incomingRelation?.sourceDocument
-        ? {
-            relationType: doc.incomingRelation.type,
-            note: doc.incomingRelation.note,
-            document: {
-              id: doc.incomingRelation.sourceDocument.id,
-              code: doc.incomingRelation.sourceDocument.code,
-              typeName: doc.incomingRelation.sourceDocument.type.name,
-            },
-          }
-        : null,
-    };
-  }
-
   async getLandingData() {
     const currentYear = new Date().getFullYear();
 
     const [documentTypes, recentDocuments, featuredDocuments, stats] = await Promise.all([
       this.getPublicDocumentTypes(),
-      this.getRecentDocuments(6),
+      this.getRecentDocuments(8),
       this.getFeaturedDocuments(6),
       this.getLandingStats(currentYear),
     ]);
@@ -331,6 +300,37 @@ export class PublicDocumentsService {
       year: doc.year,
       publicationDate: doc.publicationDate,
       legalStatus: doc.legalStatus,
+    };
+  }
+
+  private mapDocumentToDto(doc: DocumentRecord) {
+    return {
+      id: doc.id,
+      code: doc.code,
+      summary: doc.summary,
+      legalStatus: doc.legalStatus,
+      publicationDate: doc.publicationDate,
+      promulgationDate: doc.promulgationDate,
+      validUntil: doc.validUntil,
+      downloadCount: doc.downloadCount,
+      typeName: doc.type.name,
+      file: {
+        url: this.buildPublicDocumentFileUrl(doc.id),
+        name: doc.file.originalName,
+        mimeType: doc.file.mimeType,
+        sizeBytes: doc.file.sizeBytes,
+      },
+      incomingRelation: doc.incomingRelation?.sourceDocument
+        ? {
+            relationType: doc.incomingRelation.type,
+            note: doc.incomingRelation.note,
+            document: {
+              id: doc.incomingRelation.sourceDocument.id,
+              code: doc.incomingRelation.sourceDocument.code,
+              typeName: doc.incomingRelation.sourceDocument.type.name,
+            },
+          }
+        : null,
     };
   }
 }
