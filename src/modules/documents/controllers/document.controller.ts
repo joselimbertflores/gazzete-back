@@ -14,7 +14,7 @@ export class DocumentController {
 
   @Get('types')
   getDocumentTypes() {
-    return this.documentTypeService.getActiveTypes();
+    return this.documentTypeService.getTypeOptions();
   }
 
   @Post()

@@ -43,8 +43,8 @@ export class PublicDocumentsController {
   }
 
   @Get('types')
-  getTypes() {
-    return this.docTypesService.getActiveTypes();
+  getTypeOptions() {
+    return this.docTypesService.getTypeOptions();
   }
 
   @Get()

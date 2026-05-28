@@ -26,7 +26,7 @@ export class DocumentTypeService {
     return this.documentTypeRepository.save(type);
   }
 
-  async getActiveTypes() {
-    return this.documentTypeRepository.find({ where: { isActive: true } });
+  async getTypeOptions() {
+    return this.documentTypeRepository.find({ where: { isActive: true }, select: ['id', 'name'] });
   }
 }
