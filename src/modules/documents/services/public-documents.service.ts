@@ -42,6 +42,7 @@ export class PublicDocumentsService {
   }
 
   async findAll(query: FindPublicDocumentsDto) {
+    console.log('Received query:', query);
     const { term, type, year, legalStatus, offset, limit } = query;
 
     const qb = this.docRepository.createQueryBuilder('doc');
