@@ -6,10 +6,6 @@ export class CreateUserDto {
   @IsString()
   fullName: string;
 
-  @IsNotEmpty()
-  @IsOptional()
-  login?: string;
-
   @IsOptional()
   password?: string;
 
@@ -20,6 +16,23 @@ export class CreateUserDto {
 
 export class UpdateUserDto {
   @IsOptional()
+  @IsArray()
+  @IsEnum(UserRole, { each: true })
+  @ArrayMinSize(1)
+  roles: UserRole[];
+}
+
+export class SearchIdentityCandidatesDto {
+  @IsOptional()
+  @IsString()
+  term = '';
+}
+
+export class ImportUserFromIdentityDto {
+  @IsNotEmpty()
+  @IsString()
+  externalKey: string;
+
   @IsArray()
   @IsEnum(UserRole, { each: true })
   @ArrayMinSize(1)

@@ -30,6 +30,9 @@ export class EnvironmentVariables {
   IDENTITY_HUB_URL: string;
 
   @IsString()
+  IDENTITY_HUB_INTERNAL_URL: string;
+
+  @IsString()
   OAUTH_CLIENT_ID: string;
 
   @IsString()

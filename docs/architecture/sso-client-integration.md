@@ -83,10 +83,72 @@ Si esa validación falla, la request no se considera autenticada.
 Gaceta no usa directamente el usuario remoto del Identity Hub como modelo de aplicación. Mantiene un **shadow user** local:
 
 - clave de correlación: `externalKey`
-- alta automática si el usuario no existe localmente
+- alta automática JIT si el usuario no existe localmente
 - sincronización básica del `fullName`
+- roles locales propios de Gaceta
 
 El shadow user local permite que Gaceta mantenga roles y decisiones propias del dominio sin depender de consultas remotas en cada request.
+Identity Hub puede entregar `login` y `email` como datos disponibles en su catálogo interno, pero Gaceta no los persiste porque actualmente no los necesita. `externalKey` sigue siendo el vínculo real entre el usuario central y el shadow user local.
+
+### Importación administrativa desde Identity Hub
+
+Un admin local puede importar un shadow user antes de su primer login para asignarle roles de Gaceta:
+
+1. El frontend consulta candidatos mediante el backend de Gaceta.
+2. Gaceta llama a los endpoints internos de Identity Hub con HTTP Basic Authentication usando `OAUTH_CLIENT_ID` y `OAUTH_CLIENT_SECRET`.
+3. Antes de crear el registro, Gaceta valida que el `externalKey` no exista localmente y vuelve a consultar el candidato exacto en Identity Hub.
+4. Gaceta crea el shadow user con `externalKey`, `fullName` y los roles locales enviados por el admin.
+
+Rutas locales protegidas por SSO y rol local `ADMIN`:
+
+- `GET /api/users/identity-candidates?term=`
+- `GET /api/users/identity-candidates/:externalKey`
+- `POST /api/users/import-from-identity`
+
+El navegador nunca llama directamente a Identity Hub para esta operación. Identity Hub mantiene al usuario central y no conoce roles de Gaceta.
+
+Identity Hub expone `externalKey` como identificador estable de integración. Gaceta persiste ese valor en su shadow user local y no utiliza el `id` interno de base de datos de Identity Hub.
+
+Flujo operativo recomendado:
+
+1. Crear el usuario central en Identity Hub.
+2. Asignarle acceso a la aplicación Gaceta desde Identity Hub.
+3. Importarlo desde Gaceta cuando necesite roles locales específicos antes del primer login.
+4. Permitir el login SSO posterior. La sincronización JIT solo actualiza datos descriptivos locales y conserva los roles definidos en Gaceta.
+
+En producción, TypeORM tiene `synchronize` desactivado. Si se aplicó una versión intermedia de esta implementación, deben eliminarse las columnas locales innecesarias:
+
+```sql
+ALTER TABLE users DROP COLUMN IF EXISTS login;
+ALTER TABLE users DROP COLUMN IF EXISTS email;
+```
+
+El esquema local vigente debe conservar `users.externalKey` como columna única y `users.fullName` como columna requerida.
+
+### Roles locales y alta JIT
+
+`syncUserFromIdentity` consulta el catálogo interno para actualizar `fullName`, pero no sobrescribe roles de un shadow user existente. Si crea un shadow user por JIT durante el primer login, asigna únicamente el rol local por defecto `USER`.
+
+El primer `ADMIN` no puede depender de la importación administrativa porque todavía no existe un admin autorizado para ejecutarla. Debe crearse mediante el comando de bootstrap local:
+
+```bash
+BOOTSTRAP_ADMIN_EXTERNAL_KEY=IDH-U-... npm run bootstrap:admin
+```
+
+Este comando se ejecuta una sola vez durante la inicialización operativa de Gaceta, después de crear el usuario central y asignarle acceso a Gaceta en Identity Hub. Requiere:
+
+- `BOOTSTRAP_ADMIN_EXTERNAL_KEY`
+  `externalKey` exacto del usuario central que será el primer admin local.
+- `IDENTITY_HUB_INTERNAL_URL`
+  URL interna usada para consultar al usuario asignable en Identity Hub.
+- `OAUTH_CLIENT_ID`
+  Identificador del cliente Gaceta usado por HTTP Basic Authentication.
+- `OAUTH_CLIENT_SECRET`
+  Secreto del cliente Gaceta usado por HTTP Basic Authentication.
+
+El comando no crea nada si ya existe algún `ADMIN` local. Tampoco promueve usuarios shadow existentes: si el `externalKey` ya está registrado sin rol `ADMIN`, termina con error para evitar cambios inesperados. Si Identity Hub no encuentra el usuario asignable, debe verificarse que exista, esté activo y tenga acceso a Gaceta.
+
+El bootstrap sirve exclusivamente para crear el primer admin local. Los admins posteriores se gestionan desde la UI administrativa de Gaceta.
 
 ## Protección de APIs
 
@@ -149,12 +211,27 @@ Las rutas API protegidas no redirigen al frontend. Responden con errores HTTP:
 - `403 Forbidden`
   Cuando la request está autenticada pero un guard de roles rechaza permisos.
 
+Para importación de usuarios también se usan:
+
+- `400 Bad Request`
+  Cuando el payload o los roles locales no son válidos.
+
+- `404 Not Found`
+  Cuando el usuario ya no está disponible en el catálogo interno de Identity Hub.
+
+- `409 Conflict`
+  Cuando el shadow user ya existe en Gaceta.
+
 ## Variables de entorno necesarias
 
 Variables mínimas relacionadas con SSO/Auth:
 
 - `IDENTITY_HUB_URL`
-  URL base del Identity Hub.
+  URL base pública del Identity Hub usada para OAuth, JWKS y SSO.
+
+- `IDENTITY_HUB_INTERNAL_URL`
+  URL base interna usada por el backend de Gaceta para consumir endpoints service-to-service de Identity Hub.
+  En desarrollo puede coincidir con `IDENTITY_HUB_URL`. Las llamadas internas usan `/internal/*` sin prefijo `/api`.
 
 - `OAUTH_CLIENT_ID`
   Identificador del cliente Gaceta registrado en Identity Hub.
