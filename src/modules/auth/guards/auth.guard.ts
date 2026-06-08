@@ -58,6 +58,12 @@ export class OAuthGuard implements CanActivate {
       const result = await this.tryAccessToken(accessToken);
 
       if (result.user) {
+        // Local activation remains a Gaceta authorization decision, separate from Identity Hub.
+        if (!result.user.isActive) {
+          this.authCookieService.clearAuthCookies(response);
+          throw new UnauthorizedException('Local user is inactive');
+        }
+
         return result.user;
       }
 
@@ -118,6 +124,12 @@ export class OAuthGuard implements CanActivate {
         throw new UnauthorizedException('User not found');
       }
 
+      // Local activation remains a Gaceta authorization decision, separate from Identity Hub.
+      if (!user.isActive) {
+        throw new UnauthorizedException('Local user is inactive');
+      }
+
+      // Identity Hub refresh tokens rotate; always replace both local cookies with the new pair.
       this.authCookieService.setAuthCookies(response, tokens);
 
       return user;

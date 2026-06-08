@@ -18,8 +18,8 @@ export class OAuthController {
   @Public()
   @Get('login')
   login(@Res() response: Response) {
-    const { url, state } = this.oauthService.buildAuthorizeUrl();
-    this.authCookieService.setOAuthStateCookie(response, state);
+    const { url, state, codeVerifier } = this.oauthService.buildAuthorizeUrl();
+    this.authCookieService.setOAuthTransactionCookies(response, state, codeVerifier);
 
     return response.redirect(url);
   }
@@ -31,27 +31,34 @@ export class OAuthController {
     @Res({ passthrough: true }) response: Response,
     @Query() queryParams: AuthCallbackParamsDto,
   ) {
-    if (queryParams.error) {
-      return this.redirectToError(response, queryParams.error);
-    }
-
     const cookieState = this.authCookieService.getOAuthState(request);
 
+    // Validate state before processing success or error callbacks.
     if (!queryParams.state || queryParams.state !== cookieState) {
       return this.redirectToError(response, 'invalid_state');
+    }
+
+    if (queryParams.error) {
+      return this.redirectToError(response, queryParams.error);
     }
 
     if (!queryParams.code) {
       return this.redirectToError(response, 'missing_code');
     }
 
+    const codeVerifier = this.authCookieService.getPkceVerifier(request);
+
+    if (!codeVerifier) {
+      return this.redirectToError(response, 'missing_code_verifier');
+    }
+
     try {
-      const redirectUrl = await this.completeAuthorizationCodeFlow(queryParams.code, response);
+      const redirectUrl = await this.completeAuthorizationCodeFlow(queryParams.code, codeVerifier, response);
       return response.redirect(redirectUrl);
     } catch (error: unknown) {
       this.logger.error(
         'OAuth callback failed during token exchange or user synchronization',
-        error instanceof Error ? error.stack : String(error),
+        this.buildSafeErrorLog(error),
       );
 
       return this.redirectToError(response, 'token_exchange_failed');
@@ -59,15 +66,54 @@ export class OAuthController {
   }
 
   private redirectToError(response: Response, error: string) {
-    this.authCookieService.clearOAuthStateCookie(response);
+    this.authCookieService.clearOAuthTransactionCookies(response);
     return response.redirect(this.authRedirectService.buildErrorRedirectUrl(error));
   }
 
-  private async completeAuthorizationCodeFlow(code: string, response: Response) {
-    const tokens = await this.oauthService.completeAuthorizationCodeFlow(code);
-    this.authCookieService.clearOAuthStateCookie(response);
+  private async completeAuthorizationCodeFlow(code: string, codeVerifier: string, response: Response) {
+    const tokens = await this.oauthService.completeAuthorizationCodeFlow(code, codeVerifier);
+    this.authCookieService.clearOAuthTransactionCookies(response);
     this.authCookieService.setAuthCookies(response, tokens);
 
     return this.authRedirectService.buildSuccessRedirectUrl();
+  }
+
+  private buildSafeErrorLog(error: unknown) {
+    const errorRecord = this.asErrorRecord(error);
+    const safeLog: Record<string, string | number> = {
+      errorType: error instanceof Error ? error.name : typeof error,
+      message: 'OAuth callback processing failed',
+    };
+
+    const status = errorRecord?.response?.status ?? errorRecord?.status;
+    const code = errorRecord?.code;
+
+    if (typeof status === 'number' || typeof status === 'string') {
+      safeLog.status = status;
+    }
+
+    if (typeof code === 'number' || typeof code === 'string') {
+      safeLog.code = code;
+    }
+
+    return safeLog;
+  }
+
+  private asErrorRecord(error: unknown):
+    | {
+        code?: string | number;
+        status?: string | number;
+        response?: { status?: string | number };
+      }
+    | undefined {
+    if (!error || typeof error !== 'object') {
+      return undefined;
+    }
+
+    return error as {
+      code?: string | number;
+      status?: string | number;
+      response?: { status?: string | number };
+    };
   }
 }

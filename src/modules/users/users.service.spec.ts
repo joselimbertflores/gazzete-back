@@ -167,5 +167,5 @@ function createLocalUser(overrides: Partial<User> = {}): User {
 }
 
 function createUniqueViolation(): QueryFailedError {
-  return new QueryFailedError('', [], { code: '23505' });
+  return new QueryFailedError('', [], { code: '23505' } as Error & { code: string });
 }

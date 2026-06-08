@@ -14,13 +14,14 @@ export class AuthIdentityService {
     private readonly configService: ConfigService<EnvironmentVariables>,
   ) {}
 
-  async exchangeAuthorizationCode(code: string): Promise<TokenRequestResponse> {
+  async exchangeAuthorizationCode(code: string, codeVerifier: string): Promise<TokenRequestResponse> {
     return this.requestTokens({
       grant_type: 'authorization_code',
       code,
       redirect_uri: this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI'),
       client_id: this.configService.getOrThrow<string>('OAUTH_CLIENT_ID'),
       client_secret: this.configService.getOrThrow<string>('OAUTH_CLIENT_SECRET'),
+      code_verifier: codeVerifier,
     });
   }
 

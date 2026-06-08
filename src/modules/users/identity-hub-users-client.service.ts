@@ -57,6 +57,7 @@ export class IdentityHubUsersClientService {
   }
 
   private buildUrl(path: string): URL {
+    // Internal Hub URL is server-to-server; browser redirects use IDENTITY_HUB_URL.
     const identityHubInternalUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_INTERNAL_URL');
     return new URL(path, this.ensureTrailingSlash(identityHubInternalUrl));
   }

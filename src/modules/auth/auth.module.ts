@@ -12,6 +12,7 @@ import {
   TokenVerifierService,
   AuthCookieService,
   AuthRedirectService,
+  PkceService,
 } from './services';
 import { AuthController, OAuthController } from './controllers';
 
@@ -24,6 +25,7 @@ import { AuthController, OAuthController } from './controllers';
     AuthCookieService,
     AuthIdentityService,
     TokenVerifierService,
+    PkceService,
     {
       provide: APP_GUARD,
       useClass: OAuthGuard,

@@ -30,9 +30,8 @@ async function bootstrap() {
   );
 
   const corsOrigin = configService.get<string>('CORS_ORIGIN');
-  const nodeEnv = configService.getOrThrow<'development' | 'production'>('NODE_ENV');
 
-  if (nodeEnv === 'development' && corsOrigin) {
+  if (corsOrigin) {
     app.enableCors({ origin: corsOrigin, credentials: true });
   }
 

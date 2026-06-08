@@ -11,15 +11,23 @@ export class AuthCookieService {
   private readonly accessCookieName = 'gazette_access';
   private readonly refreshCookieName = 'gazette_refresh';
   private readonly stateCookieName = 'gazette_oauth_state';
+  private readonly pkceVerifierCookieName = 'gazette_pkce_verifier';
+  private readonly oauthTransactionPath = '/auth';
+  private readonly oauthTransactionTtlMs = 5 * 60 * 1000;
 
   constructor(private readonly configService: ConfigService<EnvironmentVariables>) {}
 
-  setOAuthStateCookie(response: Response, state: string) {
-    response.cookie(this.stateCookieName, state, this.getCookieOptions(5 * 60 * 1000));
+  setOAuthTransactionCookies(response: Response, state: string, codeVerifier: string) {
+    // Short-lived OAuth transaction cookies keep PKCE server-side from the browser application's perspective.
+    const options = this.getCookieOptions(this.oauthTransactionTtlMs, this.oauthTransactionPath);
+    response.cookie(this.stateCookieName, state, options);
+    response.cookie(this.pkceVerifierCookieName, codeVerifier, options);
   }
 
-  clearOAuthStateCookie(response: Response) {
-    response.clearCookie(this.stateCookieName, this.getBaseOptions());
+  clearOAuthTransactionCookies(response: Response) {
+    const options = this.getBaseOptions(this.oauthTransactionPath);
+    response.clearCookie(this.stateCookieName, options);
+    response.clearCookie(this.pkceVerifierCookieName, options);
   }
 
   setAuthCookies(response: Response, tokens: TokenRequestResponse) {
@@ -41,7 +49,7 @@ export class AuthCookieService {
 
   clearSessionCookies(response: Response) {
     this.clearAuthCookies(response);
-    this.clearOAuthStateCookie(response);
+    this.clearOAuthTransactionCookies(response);
   }
 
   getAccessToken(request: Request): string | undefined {
@@ -56,18 +64,22 @@ export class AuthCookieService {
     return request.cookies[this.stateCookieName] as string | undefined;
   }
 
-  private getBaseOptions(): CookieOptions {
+  getPkceVerifier(request: Request): string | undefined {
+    return request.cookies[this.pkceVerifierCookieName] as string | undefined;
+  }
+
+  private getBaseOptions(path = '/'): CookieOptions {
     return {
       httpOnly: true,
       sameSite: 'lax',
       secure: this.configService.getOrThrow<boolean>('AUTH_COOKIE_SECURE'),
-      path: '/',
+      path,
     };
   }
 
-  private getCookieOptions(maxAge: number): CookieOptions {
+  private getCookieOptions(maxAge: number, path = '/'): CookieOptions {
     return {
-      ...this.getBaseOptions(),
+      ...this.getBaseOptions(path),
       maxAge,
     };
   }

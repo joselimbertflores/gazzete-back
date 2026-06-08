@@ -21,7 +21,6 @@ import { AuthModule } from './modules/auth/auth.module';
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService<EnvironmentVariables>) => {
-        const isProduction = configService.get<string>('NODE_ENV') === 'production';
         return {
           type: 'postgres',
           host: configService.getOrThrow<string>('DATABASE_HOST'),
@@ -30,7 +29,7 @@ import { AuthModule } from './modules/auth/auth.module';
           username: configService.getOrThrow<string>('DATABASE_USER'),
           password: configService.getOrThrow<string>('DATABASE_PASSWORD'),
           autoLoadEntities: true,
-          synchronize: !isProduction,
+          synchronize: configService.getOrThrow<string>('DB_SYNCHRONIZE') === 'true',
         };
       },
     }),
