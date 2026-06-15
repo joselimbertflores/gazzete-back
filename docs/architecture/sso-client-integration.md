@@ -82,16 +82,28 @@ Antes de aceptar el access token, Gaceta valida:
 
 Si el access token expiro y existe `gazette_refresh`, el guard intenta refresh silencioso. Si el refresh falla, limpia cookies y responde `401`.
 
-## Usuarios y roles locales
+## Acceso global y shadow users
 
 Gaceta mantiene un shadow user local vinculado por `externalKey`. Ese valor es el identificador estable de integracion con Identity Hub.
 
-Identity Hub decide identidad global y acceso a la aplicacion. Gaceta decide roles locales:
+Identity Hub es la unica fuente de verdad para el acceso global a Gaceta. Controla el acceso mediante:
+
+- `user.isActive` central.
+- `application.isActive`.
+- la relacion `user_applications` entre usuario y aplicacion.
+
+Gaceta no tiene `isActive` local para usuarios shadow. El shadow user local no representa acceso vigente; representa identidad proyectada, roles/permisos locales e historial interno para relaciones como `createdBy` o `updatedBy`.
+
+Para quitar acceso a Gaceta se revoca la aplicacion desde Identity Hub, eliminando la relacion usuario-aplicacion correspondiente. El usuario shadow local no se borra. Si despues se vuelve a dar acceso desde Identity Hub, `syncUserFromIdentity` reutiliza el shadow user existente y conserva sus roles locales.
+
+Para cambiar lo que el usuario puede hacer dentro de Gaceta se modifican roles/permisos locales:
 
 - `ADMIN`
 - `USER`
 
-La sincronizacion JIT actualiza datos descriptivos como `fullName`, pero no sobrescribe roles locales. Si el usuario no existe localmente durante el primer login, se crea con rol `USER`. El guard tambien exige que el usuario local este activo (`isActive=true`).
+`syncUserFromIdentity` se ejecuta despues de un login/callback SSO exitoso, no en cada request. No autoriza acceso; solo proyecta o actualiza identidad local. Busca el usuario local por `externalKey`; si no existe, lo crea con `externalKey`, `fullName` y rol `USER`; si existe, actualiza solo `fullName` cuando cambia para evitar modificar `updatedAt` innecesariamente. Nunca sobrescribe roles ni permisos locales.
+
+El guard valida tokens/cookies segun el flujo actual, exige que exista el shadow user local creado o sincronizado por el login SSO y aplica roles/permisos locales cuando corresponde. No valida `isActive` local porque ese campo no existe. Si un usuario no tiene acceso a la aplicacion, el bloqueo debe ocurrir desde Identity Hub en authorize/token/refresh.
 
 ## Importacion y bootstrap admin
 
@@ -110,6 +122,16 @@ BOOTSTRAP_ADMIN_EXTERNAL_KEY=IDH-U-... npm run bootstrap:admin
 ```
 
 El bootstrap usa `BOOTSTRAP_ADMIN_EXTERNAL_KEY`, consulta Identity Hub con `OAUTH_CLIENT_ID` y `OAUTH_CLIENT_SECRET`, no crea nada si ya existe un admin local y no promueve usuarios shadow existentes.
+
+## Base de datos
+
+Este proyecto no define migraciones TypeORM versionadas. En ambientes donde `DB_SYNCHRONIZE=false`, aplicar el cambio operativo sobre la base de Gaceta:
+
+```sql
+ALTER TABLE users DROP COLUMN IF EXISTS "isActive";
+```
+
+No se deben borrar registros de usuarios locales ni modificar tablas de Identity Hub desde este cliente. En el futuro, la auditoria de asignaciones y revocaciones de aplicaciones debe vivir en una tabla separada de eventos/auditoria en Identity Hub, no en los usuarios shadow del cliente.
 
 ## Logout local y global
 

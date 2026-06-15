@@ -106,7 +106,6 @@ export class UsersService {
       externalKey: identityUser.externalKey,
       fullName: identityUser.fullName,
       roles: [UserRole.ADMIN],
-      isActive: true,
     });
 
     try {
@@ -122,18 +121,12 @@ export class UsersService {
 
   async syncUserFromIdentity(payload: AccessTokenPayload) {
     const externalKey = payload.externalKey;
+    const fullName = payload.name;
     let user = await this.findByExternalKey(externalKey);
-    const identityUser = await this.identityHubUsersClient.findAssignableUserByExternalKey(externalKey);
-
-    if (identityUser.externalKey !== externalKey) {
-      throw new BadGatewayException(
-        'El servicio de usuarios devolvió un identificador externo diferente al solicitado.',
-      );
-    }
 
     if (!user) {
       user = this.userRepository.create({
-        fullName: identityUser.fullName,
+        fullName,
         externalKey,
         roles: [UserRole.USER],
       });
@@ -152,8 +145,8 @@ export class UsersService {
 
     let shouldSave = false;
 
-    if (user.fullName !== identityUser.fullName) {
-      user.fullName = identityUser.fullName;
+    if (user.fullName !== fullName) {
+      user.fullName = fullName;
       shouldSave = true;
     }
 

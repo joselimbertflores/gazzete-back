@@ -16,9 +16,6 @@ export class User {
   @Column({ unique: true })
   externalKey: string;
 
-  @Column({ default: true })
-  isActive: boolean;
-
   @CreateDateColumn()
   createdAt: Date;
 

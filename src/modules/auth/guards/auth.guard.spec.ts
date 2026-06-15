@@ -1,4 +1,4 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 jest.mock('jwks-rsa', () => ({
@@ -11,7 +11,7 @@ import { UsersService } from 'src/modules/users/users.service';
 import { UserRole } from 'src/modules/users/entities';
 
 describe('OAuthGuard', () => {
-  it('rejects an inactive local user and clears auth cookies', async () => {
+  it('accepts an existing local shadow user without checking local activation', async () => {
     const request = { cookies: {} };
     const response = {};
     const authCookieService = {
@@ -27,7 +27,6 @@ describe('OAuthGuard', () => {
         id: 'local-user-id',
         externalKey: 'IDH-U-01',
         fullName: 'Ada Lovelace',
-        isActive: false,
         roles: [UserRole.USER],
       }),
     };
@@ -42,10 +41,14 @@ describe('OAuthGuard', () => {
       tokenVerifierService as unknown as TokenVerifierService,
     );
 
-    await expect(guard.canActivate(createContext(request, response))).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
-    expect(authCookieService.clearAuthCookies).toHaveBeenCalledWith(response);
+    await expect(guard.canActivate(createContext(request, response))).resolves.toBe(true);
+    expect(authCookieService.clearAuthCookies).not.toHaveBeenCalled();
+    expect(request).toMatchObject({
+      user: {
+        externalKey: 'IDH-U-01',
+        roles: [UserRole.USER],
+      },
+    });
   });
 });
 

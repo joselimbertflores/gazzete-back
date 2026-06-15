@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional, IsBoolean, IsArray, IsEnum, ArrayMinSize } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsArray, IsEnum, ArrayMinSize } from 'class-validator';
 import { UserRole } from '../entities';
 
 export class CreateUserDto {
@@ -8,10 +8,6 @@ export class CreateUserDto {
 
   @IsOptional()
   password?: string;
-
-  @IsBoolean()
-  @IsOptional()
-  isActive?: boolean;
 }
 
 export class UpdateUserDto {

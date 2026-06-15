@@ -67,9 +67,7 @@ describe('UsersService', () => {
   it('syncs the display name without overwriting local roles', async () => {
     const user = createLocalUser({ fullName: 'Previous Name', roles: [UserRole.ADMIN] });
     userRepository.findOne.mockResolvedValue(user);
-    identityHubUsersClient.findAssignableUserByExternalKey.mockResolvedValue(createIdentityUser());
-
-    await service.syncUserFromIdentity({ externalKey: 'IDH-U-01' } as never);
+    await service.syncUserFromIdentity(createAccessTokenPayload());
 
     expect(userRepository.save).toHaveBeenCalledWith({
       ...user,
@@ -78,11 +76,20 @@ describe('UsersService', () => {
     });
   });
 
+  it('does not update the shadow user when the display name has not changed', async () => {
+    const user = createLocalUser({ fullName: 'Ada Lovelace', roles: [UserRole.ADMIN] });
+    userRepository.findOne.mockResolvedValue(user);
+
+    await service.syncUserFromIdentity(createAccessTokenPayload());
+
+    expect(userRepository.save).not.toHaveBeenCalled();
+    expect(user.roles).toEqual([UserRole.ADMIN]);
+  });
+
   it('creates a JIT shadow user with only the default local role', async () => {
     userRepository.findOne.mockResolvedValue(null);
-    identityHubUsersClient.findAssignableUserByExternalKey.mockResolvedValue(createIdentityUser());
 
-    await service.syncUserFromIdentity({ externalKey: 'IDH-U-01' } as never);
+    await service.syncUserFromIdentity(createAccessTokenPayload());
 
     expect(userRepository.create).toHaveBeenCalledWith({
       externalKey: 'IDH-U-01',
@@ -95,12 +102,12 @@ describe('UsersService', () => {
     const existingUser = createLocalUser({ roles: [UserRole.ADMIN] });
     userRepository.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(existingUser);
     userRepository.save.mockRejectedValue(createUniqueViolation());
-    identityHubUsersClient.findAssignableUserByExternalKey.mockResolvedValue(createIdentityUser());
 
-    const user = await service.syncUserFromIdentity({ externalKey: 'IDH-U-01' } as never);
+    const user = await service.syncUserFromIdentity(createAccessTokenPayload());
 
     expect(user).toBe(existingUser);
     expect(user.roles).toEqual([UserRole.ADMIN]);
+    expect(identityHubUsersClient.findAssignableUserByExternalKey).not.toHaveBeenCalled();
   });
 
   it('does not create a bootstrap admin when a local admin already exists', async () => {
@@ -134,17 +141,22 @@ describe('UsersService', () => {
         externalKey: 'IDH-U-01',
         fullName: 'Ada Lovelace',
         roles: [UserRole.ADMIN],
-        isActive: true,
       },
     });
     expect(userRepository.create).toHaveBeenCalledWith({
       externalKey: 'IDH-U-01',
       fullName: 'Ada Lovelace',
       roles: [UserRole.ADMIN],
-      isActive: true,
     });
   });
 });
+
+function createAccessTokenPayload() {
+  return {
+    externalKey: 'IDH-U-01',
+    name: 'Ada Lovelace',
+  } as never;
+}
 
 function createIdentityUser(): IdentityHubAssignableUser {
   return {
@@ -160,7 +172,6 @@ function createLocalUser(overrides: Partial<User> = {}): User {
     id: 'local-user-id',
     externalKey: 'IDH-U-01',
     fullName: 'Ada Lovelace',
-    isActive: true,
     roles: [UserRole.USER],
     ...overrides,
   } as User;
