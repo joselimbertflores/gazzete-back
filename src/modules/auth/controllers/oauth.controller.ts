@@ -1,7 +1,7 @@
 import { Controller, Get, Logger, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
-import { AuthCookieService, AuthRedirectService, OAuthService } from '../services';
+import { AuthCookieService, AuthRedirectService, AuthSessionService, OAuthService } from '../services';
 import { Public } from '../decorators';
 import { AuthCallbackParamsDto } from '../dtos';
 
@@ -13,6 +13,7 @@ export class OAuthController {
     private readonly oauthService: OAuthService,
     private readonly authCookieService: AuthCookieService,
     private readonly authRedirectService: AuthRedirectService,
+    private readonly authSessionService: AuthSessionService,
   ) {}
 
   @Public()
@@ -53,7 +54,7 @@ export class OAuthController {
     }
 
     try {
-      const redirectUrl = await this.completeAuthorizationCodeFlow(queryParams.code, codeVerifier, response);
+      const redirectUrl = await this.completeAuthorizationCodeFlow(queryParams.code, codeVerifier, request, response);
       return response.redirect(redirectUrl);
     } catch (error: unknown) {
       this.logger.error(
@@ -70,10 +71,21 @@ export class OAuthController {
     return response.redirect(this.authRedirectService.buildErrorRedirectUrl(error));
   }
 
-  private async completeAuthorizationCodeFlow(code: string, codeVerifier: string, response: Response) {
-    const tokens = await this.oauthService.completeAuthorizationCodeFlow(code, codeVerifier);
+  private async completeAuthorizationCodeFlow(
+    code: string,
+    codeVerifier: string,
+    request: Request,
+    response: Response,
+  ) {
+    const session = await this.oauthService.completeAuthorizationCodeFlow(code, codeVerifier);
+    const previousSessionId = this.authCookieService.getSessionId(request);
+
+    if (previousSessionId && previousSessionId !== session.id) {
+      await this.authSessionService.deleteSession(previousSessionId);
+    }
+
     this.authCookieService.clearOAuthTransactionCookies(response);
-    this.authCookieService.setAuthCookies(response, tokens);
+    this.authCookieService.setSessionCookie(response, session.id, session.refreshTokenExpiresAt);
 
     return this.authRedirectService.buildSuccessRedirectUrl();
   }

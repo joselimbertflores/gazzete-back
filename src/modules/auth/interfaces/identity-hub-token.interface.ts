@@ -1,17 +1,14 @@
 export interface IdentityHubTokenResponse {
   access_token: string;
   refresh_token: string;
-  refresh_token_expires_in: number;
+  token_type: 'Bearer';
   expires_in: number;
-  token_type: string;
+  refresh_token_expires_in: number;
 }
 
-export interface TokenRequestResponse {
-  accessToken: string;
-  refreshToken: string;
-  refreshTokenExpiresIn: number;
-  accessTokenExpiresIn: number;
-  tokenType: string;
+export interface IdentityHubOAuthErrorResponse {
+  error: string;
+  error_description?: string;
 }
 
 export class AccessTokenPayload {

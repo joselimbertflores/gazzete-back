@@ -1,14 +1,17 @@
-import { Controller, Get, Post, Res } from '@nestjs/common';
+import { Controller, Get, Post, Req, Res } from '@nestjs/common';
 
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { User } from 'src/modules/users/entities';
 import { GetAuthUser, Public } from '../decorators';
-import { AuthCookieService } from '../services';
+import { AuthCookieService, AuthSessionService } from '../services';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authCookieService: AuthCookieService) {}
+  constructor(
+    private readonly authCookieService: AuthCookieService,
+    private readonly authSessionService: AuthSessionService,
+  ) {}
 
   @Get('me')
   getMe(@GetAuthUser() user: User) {
@@ -17,8 +20,14 @@ export class AuthController {
 
   @Public()
   @Post('logout')
-  logout(@Res({ passthrough: true }) res: Response) {
-    this.authCookieService.clearSessionCookies(res);
+  async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    const sessionId = this.authCookieService.getSessionId(request);
+
+    this.authCookieService.clearSessionCookies(response);
+
+    if (sessionId) {
+      await this.authSessionService.deleteSession(sessionId);
+    }
 
     return {
       ok: true,

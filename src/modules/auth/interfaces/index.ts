@@ -1,1 +1,1 @@
-export * from './responses/token-request-response.interface';
+export * from './identity-hub-token.interface';

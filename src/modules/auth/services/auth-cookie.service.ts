@@ -4,12 +4,12 @@ import { ConfigService } from '@nestjs/config';
 import type { CookieOptions, Request, Response } from 'express';
 
 import { EnvironmentVariables } from 'src/config';
-import { TokenRequestResponse } from '../interfaces';
 
 @Injectable()
 export class AuthCookieService {
-  private readonly accessCookieName = 'gazette_access';
-  private readonly refreshCookieName = 'gazette_refresh';
+  private readonly sessionCookieName = 'gazette_session';
+  private readonly legacyAccessCookieName = 'gazette_access';
+  private readonly legacyRefreshCookieName = 'gazette_refresh';
   private readonly stateCookieName = 'gazette_oauth_state';
   private readonly pkceVerifierCookieName = 'gazette_pkce_verifier';
   private readonly oauthTransactionPath = '/auth';
@@ -30,34 +30,26 @@ export class AuthCookieService {
     response.clearCookie(this.pkceVerifierCookieName, options);
   }
 
-  setAuthCookies(response: Response, tokens: TokenRequestResponse) {
-    response.cookie(this.accessCookieName, tokens.accessToken, {
+  setSessionCookie(response: Response, sessionId: string, expiresAt: Date): void {
+    this.clearLegacyAuthCookies(response);
+    response.cookie(this.sessionCookieName, sessionId, {
       ...this.getBaseOptions(),
-      maxAge: tokens.accessTokenExpiresIn * 1000,
-    });
-
-    response.cookie(this.refreshCookieName, tokens.refreshToken, {
-      ...this.getBaseOptions(),
-      maxAge: tokens.refreshTokenExpiresIn * 1000,
+      expires: expiresAt,
     });
   }
 
-  clearAuthCookies(response: Response) {
-    response.clearCookie(this.accessCookieName, this.getBaseOptions());
-    response.clearCookie(this.refreshCookieName, this.getBaseOptions());
+  clearSessionCookie(response: Response): void {
+    response.clearCookie(this.sessionCookieName, this.getBaseOptions());
   }
 
   clearSessionCookies(response: Response) {
-    this.clearAuthCookies(response);
+    this.clearSessionCookie(response);
+    this.clearLegacyAuthCookies(response);
     this.clearOAuthTransactionCookies(response);
   }
 
-  getAccessToken(request: Request): string | undefined {
-    return request.cookies[this.accessCookieName] as string | undefined;
-  }
-
-  getRefreshToken(request: Request): string | undefined {
-    return request.cookies[this.refreshCookieName] as string | undefined;
+  getSessionId(request: Request): string | undefined {
+    return request.cookies?.[this.sessionCookieName] as string | undefined;
   }
 
   getOAuthState(request: Request): string | undefined {
@@ -66,6 +58,11 @@ export class AuthCookieService {
 
   getPkceVerifier(request: Request): string | undefined {
     return request.cookies[this.pkceVerifierCookieName] as string | undefined;
+  }
+
+  private clearLegacyAuthCookies(response: Response): void {
+    response.clearCookie(this.legacyAccessCookieName, this.getBaseOptions());
+    response.clearCookie(this.legacyRefreshCookieName, this.getBaseOptions());
   }
 
   private getBaseOptions(path = '/'): CookieOptions {

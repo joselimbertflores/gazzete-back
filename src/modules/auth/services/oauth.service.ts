@@ -4,9 +4,10 @@ import { ConfigService } from '@nestjs/config';
 import { AuthIdentityService } from './auth-identity.service';
 import { TokenVerifierService } from './token-verifier.service';
 import { UsersService } from 'src/modules/users/users.service';
-import { TokenRequestResponse } from '../interfaces';
 import { EnvironmentVariables } from 'src/config';
 import { PkceService } from './pkce.service';
+import { AuthSessionService } from './auth-session.service';
+import type { AuthSession } from '../entities';
 
 @Injectable()
 export class OAuthService {
@@ -16,15 +17,16 @@ export class OAuthService {
     private readonly tokenVerifierService: TokenVerifierService,
     private readonly configService: ConfigService<EnvironmentVariables>,
     private readonly pkceService: PkceService,
+    private readonly authSessionService: AuthSessionService,
   ) {}
 
-  async completeAuthorizationCodeFlow(code: string, codeVerifier: string): Promise<TokenRequestResponse> {
+  async completeAuthorizationCodeFlow(code: string, codeVerifier: string): Promise<AuthSession> {
     const tokens = await this.authIdentityService.exchangeAuthorizationCode(code, codeVerifier);
-    const decodedAccessToken = await this.tokenVerifierService.verifyAccessToken(tokens.accessToken);
+    const decodedAccessToken = await this.tokenVerifierService.verifyAccessToken(tokens.access_token);
 
-    await this.usersService.syncUserFromIdentity(decodedAccessToken);
+    const user = await this.usersService.syncUserFromIdentity(decodedAccessToken);
 
-    return tokens;
+    return this.authSessionService.createSession(user, tokens);
   }
 
   buildAuthorizeUrl() {

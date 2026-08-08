@@ -1,6 +1,7 @@
 import { HttpModule } from '@nestjs/axios';
 import { APP_GUARD } from '@nestjs/core';
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { UsersModule } from '../users/users.module';
 import { OAuthGuard } from './guards/auth.guard';
@@ -13,8 +14,10 @@ import {
   AuthCookieService,
   AuthRedirectService,
   PkceService,
+  AuthSessionService,
 } from './services';
 import { AuthController, OAuthController } from './controllers';
+import { AuthSession } from './entities';
 
 @Module({
   controllers: [OAuthController, AuthController],
@@ -26,11 +29,12 @@ import { AuthController, OAuthController } from './controllers';
     AuthIdentityService,
     TokenVerifierService,
     PkceService,
+    AuthSessionService,
     {
       provide: APP_GUARD,
       useClass: OAuthGuard,
     },
   ],
-  imports: [HttpModule, UsersModule],
+  imports: [HttpModule, TypeOrmModule.forFeature([AuthSession]), UsersModule],
 })
 export class AuthModule {}
