@@ -5,8 +5,8 @@ import { EnvironmentVariables } from 'src/config';
 
 @Injectable()
 export class AuthRedirectService {
-  private readonly successPath = 'admin';
-  private readonly errorPath = 'auth/error';
+  private readonly successPath = '/admin';
+  private readonly errorPath = '/auth/error';
 
   constructor(private readonly configService: ConfigService<EnvironmentVariables>) {}
 
@@ -31,7 +31,7 @@ export class AuthRedirectService {
       }
 
       const queryString = searchParams.toString();
-      return queryString ? `/${path}?${queryString}` : `/${path}`;
+      return queryString ? `${path}?${queryString}` : path;
     }
 
     const url = new URL(path, this.ensureTrailingSlash(uiBaseUrl));

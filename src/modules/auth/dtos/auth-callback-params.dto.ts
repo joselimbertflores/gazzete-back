@@ -1,34 +1,21 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class AuthCallbackParamsDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(2048)
   code?: string;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(128)
   state?: string;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   error?: string;
-
-  @IsOptional()
-  @IsString()
-  client_name?: string;
-
-  @IsOptional()
-  @IsString()
-  error_description?: string;
-
-  @IsOptional()
-  @IsString()
-  error_uri?: string;
-
-  @IsOptional()
-  @IsString()
-  iss?: string;
 }

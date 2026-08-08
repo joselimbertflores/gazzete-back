@@ -15,9 +15,10 @@ import {
   AuthRedirectService,
   PkceService,
   AuthSessionService,
+  OAuthTransactionService,
 } from './services';
 import { AuthController, OAuthController } from './controllers';
-import { AuthSession } from './entities';
+import { AuthSession, OAuthTransaction } from './entities';
 
 @Module({
   controllers: [OAuthController, AuthController],
@@ -30,11 +31,12 @@ import { AuthSession } from './entities';
     TokenVerifierService,
     PkceService,
     AuthSessionService,
+    OAuthTransactionService,
     {
       provide: APP_GUARD,
       useClass: OAuthGuard,
     },
   ],
-  imports: [HttpModule, TypeOrmModule.forFeature([AuthSession]), UsersModule],
+  imports: [HttpModule, TypeOrmModule.forFeature([AuthSession, OAuthTransaction]), UsersModule],
 })
 export class AuthModule {}

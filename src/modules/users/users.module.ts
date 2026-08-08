@@ -11,6 +11,6 @@ import { UsersService } from './users.service';
   controllers: [UsersController],
   providers: [IdentityHubUsersClientService, UsersService],
   imports: [HttpModule, TypeOrmModule.forFeature([User])],
-  exports: [TypeOrmModule, UsersService],
+  exports: [UsersService],
 })
 export class UsersModule {}

@@ -37,7 +37,7 @@ export class UsersService {
     return await this.userRepository.save(user);
   }
 
-  async findByExternalKey(externalKey: string) {
+  private findByExternalKey(externalKey: string) {
     return this.userRepository.findOne({ where: { externalKey } });
   }
 

@@ -46,6 +46,11 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
+  BOOTSTRAP_ADMIN_EXTERNAL_KEY?: string;
+
+  @IsOptional()
+  @IsString()
   CORS_ORIGIN?: string;
 
   @IsOptional()

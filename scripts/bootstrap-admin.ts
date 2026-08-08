@@ -1,16 +1,19 @@
 import 'dotenv/config';
 import { INestApplicationContext, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from 'src/app.module';
+import { EnvironmentVariables } from 'src/config';
 import { UsersService } from 'src/modules/users/users.service';
 
 async function bootstrap() {
   let app: INestApplicationContext | undefined;
 
   try {
-    const externalKey = getBootstrapAdminExternalKey();
     app = await NestFactory.createApplicationContext(AppModule);
+    const configService = app.get<ConfigService<EnvironmentVariables>>(ConfigService);
+    const externalKey = getBootstrapAdminExternalKey(configService);
 
     const usersService = app.get(UsersService);
     const result = await usersService.bootstrapInitialAdmin(externalKey);
@@ -37,8 +40,8 @@ async function bootstrap() {
   }
 }
 
-function getBootstrapAdminExternalKey(): string {
-  const externalKey = process.env.BOOTSTRAP_ADMIN_EXTERNAL_KEY?.trim();
+function getBootstrapAdminExternalKey(configService: ConfigService<EnvironmentVariables>): string {
+  const externalKey = configService.get<string>('BOOTSTRAP_ADMIN_EXTERNAL_KEY')?.trim();
 
   if (!externalKey) {
     throw new Error('BOOTSTRAP_ADMIN_EXTERNAL_KEY es obligatoria y no puede estar vacía.');

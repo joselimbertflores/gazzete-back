@@ -1,3 +1,5 @@
+import type { JwtPayload } from 'jsonwebtoken';
+
 export interface IdentityHubTokenResponse {
   access_token: string;
   refresh_token: string;
@@ -8,14 +10,14 @@ export interface IdentityHubTokenResponse {
 
 export interface IdentityHubOAuthErrorResponse {
   error: string;
-  error_description?: string;
 }
 
-export class AccessTokenPayload {
+export interface AccessTokenPayload extends JwtPayload {
   sub: string;
   externalKey: string;
   name: string;
-  userType: string;
-  clientId: string;
-  scope?: string;
+  iss: string;
+  aud: string | string[];
+  iat: number;
+  exp: number;
 }

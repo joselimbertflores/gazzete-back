@@ -8,30 +8,23 @@ import { EnvironmentVariables } from 'src/config';
 @Injectable()
 export class AuthCookieService {
   private readonly sessionCookieName = 'gazette_session';
-  private readonly legacyAccessCookieName = 'gazette_access';
-  private readonly legacyRefreshCookieName = 'gazette_refresh';
-  private readonly stateCookieName = 'gazette_oauth_state';
-  private readonly pkceVerifierCookieName = 'gazette_pkce_verifier';
+  private readonly oauthTransactionCookieName = 'gazette_oauth_transaction';
   private readonly oauthTransactionPath = '/auth';
   private readonly oauthTransactionTtlMs = 5 * 60 * 1000;
 
   constructor(private readonly configService: ConfigService<EnvironmentVariables>) {}
 
-  setOAuthTransactionCookies(response: Response, state: string, codeVerifier: string) {
-    // Short-lived OAuth transaction cookies keep PKCE server-side from the browser application's perspective.
+  setOAuthTransactionCookie(response: Response, transactionId: string): void {
     const options = this.getCookieOptions(this.oauthTransactionTtlMs, this.oauthTransactionPath);
-    response.cookie(this.stateCookieName, state, options);
-    response.cookie(this.pkceVerifierCookieName, codeVerifier, options);
+    response.cookie(this.oauthTransactionCookieName, transactionId, options);
   }
 
-  clearOAuthTransactionCookies(response: Response) {
+  clearOAuthTransactionCookie(response: Response): void {
     const options = this.getBaseOptions(this.oauthTransactionPath);
-    response.clearCookie(this.stateCookieName, options);
-    response.clearCookie(this.pkceVerifierCookieName, options);
+    response.clearCookie(this.oauthTransactionCookieName, options);
   }
 
   setSessionCookie(response: Response, sessionId: string, expiresAt: Date): void {
-    this.clearLegacyAuthCookies(response);
     response.cookie(this.sessionCookieName, sessionId, {
       ...this.getBaseOptions(),
       expires: expiresAt,
@@ -44,25 +37,15 @@ export class AuthCookieService {
 
   clearSessionCookies(response: Response) {
     this.clearSessionCookie(response);
-    this.clearLegacyAuthCookies(response);
-    this.clearOAuthTransactionCookies(response);
+    this.clearOAuthTransactionCookie(response);
   }
 
   getSessionId(request: Request): string | undefined {
     return request.cookies?.[this.sessionCookieName] as string | undefined;
   }
 
-  getOAuthState(request: Request): string | undefined {
-    return request.cookies[this.stateCookieName] as string | undefined;
-  }
-
-  getPkceVerifier(request: Request): string | undefined {
-    return request.cookies[this.pkceVerifierCookieName] as string | undefined;
-  }
-
-  private clearLegacyAuthCookies(response: Response): void {
-    response.clearCookie(this.legacyAccessCookieName, this.getBaseOptions());
-    response.clearCookie(this.legacyRefreshCookieName, this.getBaseOptions());
+  getOAuthTransactionId(request: Request): string | undefined {
+    return request.cookies?.[this.oauthTransactionCookieName] as string | undefined;
   }
 
   private getBaseOptions(path = '/'): CookieOptions {

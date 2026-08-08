@@ -18,9 +18,9 @@ export class OAuthController {
 
   @Public()
   @Get('login')
-  login(@Res() response: Response) {
-    const { url, state, codeVerifier } = this.oauthService.buildAuthorizeUrl();
-    this.authCookieService.setOAuthTransactionCookies(response, state, codeVerifier);
+  async login(@Res() response: Response) {
+    const { url, transactionId } = await this.oauthService.createAuthorizationRequest();
+    this.authCookieService.setOAuthTransactionCookie(response, transactionId);
 
     return response.redirect(url);
   }
@@ -32,12 +32,16 @@ export class OAuthController {
     @Res({ passthrough: true }) response: Response,
     @Query() queryParams: AuthCallbackParamsDto,
   ) {
-    const cookieState = this.authCookieService.getOAuthState(request);
-
-    // Validate state before processing success or error callbacks.
-    if (!queryParams.state || queryParams.state !== cookieState) {
+    const transactionId = this.authCookieService.getOAuthTransactionId(request);
+    if (!transactionId || !queryParams.state) {
+      if (transactionId) await this.oauthService.discardAuthorizationRequest(transactionId);
       return this.redirectToError(response, 'invalid_state');
     }
+
+    const codeVerifier = await this.oauthService.consumeAuthorizationRequest(transactionId, queryParams.state);
+    this.authCookieService.clearOAuthTransactionCookie(response);
+
+    if (!codeVerifier) return this.redirectToError(response, 'invalid_state');
 
     if (queryParams.error) {
       return this.redirectToError(response, queryParams.error);
@@ -45,12 +49,6 @@ export class OAuthController {
 
     if (!queryParams.code) {
       return this.redirectToError(response, 'missing_code');
-    }
-
-    const codeVerifier = this.authCookieService.getPkceVerifier(request);
-
-    if (!codeVerifier) {
-      return this.redirectToError(response, 'missing_code_verifier');
     }
 
     try {
@@ -67,7 +65,7 @@ export class OAuthController {
   }
 
   private redirectToError(response: Response, error: string) {
-    this.authCookieService.clearOAuthTransactionCookies(response);
+    this.authCookieService.clearOAuthTransactionCookie(response);
     return response.redirect(this.authRedirectService.buildErrorRedirectUrl(error));
   }
 
@@ -84,7 +82,6 @@ export class OAuthController {
       await this.authSessionService.deleteSession(previousSessionId);
     }
 
-    this.authCookieService.clearOAuthTransactionCookies(response);
     this.authCookieService.setSessionCookie(response, session.id, session.refreshTokenExpiresAt);
 
     return this.authRedirectService.buildSuccessRedirectUrl();
@@ -97,7 +94,7 @@ export class OAuthController {
       message: 'OAuth callback processing failed',
     };
 
-    const status = errorRecord?.response?.status ?? errorRecord?.status;
+    const status = errorRecord?.response?.status ?? errorRecord?.statusCode ?? errorRecord?.status;
     const code = errorRecord?.code;
 
     if (typeof status === 'number' || typeof status === 'string') {
@@ -115,6 +112,7 @@ export class OAuthController {
     | {
         code?: string | number;
         status?: string | number;
+        statusCode?: string | number;
         response?: { status?: string | number };
       }
     | undefined {
@@ -125,6 +123,7 @@ export class OAuthController {
     return error as {
       code?: string | number;
       status?: string | number;
+      statusCode?: string | number;
       response?: { status?: string | number };
     };
   }

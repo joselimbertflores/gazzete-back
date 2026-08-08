@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'crypto';
 
 import { AuthIdentityService } from './auth-identity.service';
 import { TokenVerifierService } from './token-verifier.service';
@@ -8,6 +9,7 @@ import { EnvironmentVariables } from 'src/config';
 import { PkceService } from './pkce.service';
 import { AuthSessionService } from './auth-session.service';
 import type { AuthSession } from '../entities';
+import { OAuthTransactionService } from './oauth-transaction.service';
 
 @Injectable()
 export class OAuthService {
@@ -18,6 +20,7 @@ export class OAuthService {
     private readonly configService: ConfigService<EnvironmentVariables>,
     private readonly pkceService: PkceService,
     private readonly authSessionService: AuthSessionService,
+    private readonly oauthTransactionService: OAuthTransactionService,
   ) {}
 
   async completeAuthorizationCodeFlow(code: string, codeVerifier: string): Promise<AuthSession> {
@@ -29,11 +32,11 @@ export class OAuthService {
     return this.authSessionService.createSession(user, tokens);
   }
 
-  buildAuthorizeUrl() {
+  async createAuthorizationRequest(): Promise<{ url: string; transactionId: string }> {
     const identityHubUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
     const clientId = this.configService.getOrThrow<string>('OAUTH_CLIENT_ID');
     const redirectUri = this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI');
-    const state = crypto.randomUUID();
+    const state = randomBytes(32).toString('base64url');
     const codeVerifier = this.pkceService.generateCodeVerifier();
     const codeChallenge = this.pkceService.buildCodeChallenge(codeVerifier);
     const authorizeUrl = new URL('oauth/authorize', this.ensureTrailingSlash(identityHubUrl));
@@ -44,12 +47,20 @@ export class OAuthService {
     authorizeUrl.searchParams.set('state', state);
     authorizeUrl.searchParams.set('code_challenge', codeChallenge);
     authorizeUrl.searchParams.set('code_challenge_method', 'S256');
+    const transactionId = await this.oauthTransactionService.create(state, codeVerifier);
 
     return {
       url: authorizeUrl.toString(),
-      state,
-      codeVerifier,
+      transactionId,
     };
+  }
+
+  consumeAuthorizationRequest(transactionId: string, state: string) {
+    return this.oauthTransactionService.consume(transactionId, state);
+  }
+
+  discardAuthorizationRequest(transactionId: string): Promise<void> {
+    return this.oauthTransactionService.discard(transactionId);
   }
 
   private ensureTrailingSlash(value: string): string {
