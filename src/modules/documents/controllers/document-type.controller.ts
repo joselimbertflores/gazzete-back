@@ -2,7 +2,10 @@ import { Body, Get, Post, Patch, Param, ParseIntPipe, Controller } from '@nestjs
 
 import { CreateDocumentTypeDto, UpdateDocumentTypeDto } from '../dtos/document-type.dto';
 import { DocumentTypeService } from '../services/document-type.service';
+import { RequireRole } from 'src/modules/auth/decorators';
+import { UserRole } from 'src/modules/users/entities';
 
+@RequireRole(UserRole.ADMIN)
 @Controller('document-types')
 export class DocumentTypeController {
   constructor(private readonly documentTypeService: DocumentTypeService) {}

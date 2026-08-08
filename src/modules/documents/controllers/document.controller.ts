@@ -2,9 +2,10 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 
 import { CreateDocumentDto, FindAllDocumentsQueryDto, UpdateDocumentDto } from '../dtos';
 import { DocumentService, DocumentTypeService } from '../services';
-import { GetAuthUser } from 'src/modules/auth/decorators';
-import { User } from 'src/modules/users/entities';
+import { GetAuthUser, RequireRole } from 'src/modules/auth/decorators';
+import { User, UserRole } from 'src/modules/users/entities';
 
+@RequireRole(UserRole.USER)
 @Controller('documents')
 export class DocumentController {
   constructor(

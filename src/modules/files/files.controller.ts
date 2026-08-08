@@ -4,8 +4,10 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { CustomFileTypeValidator } from './validators/custom-file-type.validator';
 import { UploadDocumentQueryDto } from './dtos';
 import { FilesService } from './files.service';
+import { RequireRole } from 'src/modules/auth/decorators';
+import { UserRole } from 'src/modules/users/entities';
 
-// @Public()
+@RequireRole(UserRole.USER)
 @Controller('files')
 export class FilesController {
   constructor(private filesService: FilesService) {}

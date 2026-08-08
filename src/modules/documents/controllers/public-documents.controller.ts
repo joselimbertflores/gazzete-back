@@ -14,7 +14,6 @@ export class PublicDocumentsController {
     private readonly docTypesService: DocumentTypeService,
   ) {}
 
-  @Public()
   @Get(':id/file')
   async getDocumentFile(
     @Res({ passthrough: true }) res: Response,

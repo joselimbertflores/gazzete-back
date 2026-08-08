@@ -2,7 +2,10 @@ import { Body, Controller, Delete, Get, Param, Put, Query } from '@nestjs/common
 
 import { DocumentRelationService } from '../services';
 import { SearchRelationCandidatesDto, SaveDocumentRelationDto } from '../dtos';
+import { RequireRole } from 'src/modules/auth/decorators';
+import { UserRole } from 'src/modules/users/entities';
 
+@RequireRole(UserRole.USER)
 @Controller('document-relations')
 export class DocumentRelationController {
   constructor(private readonly relationsService: DocumentRelationService) {}
