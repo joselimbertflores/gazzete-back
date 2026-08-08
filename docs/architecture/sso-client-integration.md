@@ -61,13 +61,19 @@ Las rutas OAuth de navegador viven fuera del prefijo global `/api`. Las APIs de 
 Para `authorization_code`, Gaceta llama a Identity Hub `/oauth/token` con:
 
 - `grant_type=authorization_code`
-- `client_id`
-- `client_secret`
 - `redirect_uri`
 - `code`
 - `code_verifier`
 
-Para `refresh_token`, Gaceta conserva el flujo existente. Identity Hub usa refresh tokens rotativos, por lo que cada refresh exitoso devuelve un nuevo access token y un nuevo refresh token. Gaceta reemplaza ambas cookies locales inmediatamente.
+La solicitud usa `application/x-www-form-urlencoded`. Como Gaceta es un cliente confidential, autentica
+`OAUTH_CLIENT_ID` y `OAUTH_CLIENT_SECRET` mediante HTTP Basic y no los incluye en el body. Identity Hub responde
+con campos OAuth en `snake_case`; el cliente los adapta al modelo camelCase que consumen internamente las cookies
+y los servicios existentes.
+
+Para `refresh_token`, Gaceta usa la misma codificacion y autenticacion, enviando en el body solo
+`grant_type=refresh_token` y `refresh_token`. Identity Hub usa refresh tokens rotativos, por lo que cada refresh
+exitoso devuelve un nuevo access token y un nuevo refresh token. Gaceta reemplaza ambas cookies locales
+inmediatamente.
 
 ## Verificacion JWT
 
