@@ -21,12 +21,13 @@ import {
 import { UpdateDocumentDto, CreateDocumentDto, FindAllDocumentsQueryDto } from '../dtos';
 import { FilesService } from 'src/modules/files/files.service';
 import { User } from 'src/modules/users/entities';
+import { EnvironmentVariables } from 'src/config';
 
 @Injectable()
 export class DocumentService {
   constructor(
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
-    private configService: ConfigService,
+    private configService: ConfigService<EnvironmentVariables, true>,
     private fileService: FilesService,
     private dataSource: DataSource,
   ) {}
@@ -236,7 +237,7 @@ export class DocumentService {
   }
 
   private buildPublicDocumentFileUrl(documentId: string) {
-    const baseUrl = this.configService.getOrThrow<string>('HOST');
+    const baseUrl = this.configService.getOrThrow('GAZETTE_PUBLIC_URL', { infer: true });
     const url = new URL(`/public-documents/${documentId}/file`, baseUrl);
     return url.toString();
   }

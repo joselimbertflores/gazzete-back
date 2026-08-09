@@ -18,7 +18,7 @@ export interface IdentityHubAssignableUser {
 export class IdentityHubUsersClientService {
   constructor(
     private readonly http: HttpService,
-    private readonly configService: ConfigService<EnvironmentVariables>,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
   ) {}
 
   async searchAssignableUsers(term: string): Promise<IdentityHubAssignableUser[]> {
@@ -57,15 +57,16 @@ export class IdentityHubUsersClientService {
   }
 
   private buildUrl(path: string): URL {
-    // Internal Hub URL is server-to-server; browser redirects use IDENTITY_HUB_URL.
-    const identityHubInternalUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_INTERNAL_URL');
+    const identityHubInternalUrl =
+      this.configService.get('IDENTITY_HUB_INTERNAL_URL', { infer: true }) ??
+      this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
     return new URL(path, this.ensureTrailingSlash(identityHubInternalUrl));
   }
 
   private getBasicAuth() {
     return {
-      username: this.configService.getOrThrow<string>('OAUTH_CLIENT_ID'),
-      password: this.configService.getOrThrow<string>('OAUTH_CLIENT_SECRET'),
+      username: this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true }),
+      password: this.configService.getOrThrow('OAUTH_CLIENT_SECRET', { infer: true }),
     };
   }
 

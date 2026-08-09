@@ -8,35 +8,41 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 
 import type { Request, Response } from 'express';
 
-import type { AuthSession } from '../entities';
-import type { AccessTokenPayload } from '../interfaces';
+import type { AuthSession } from '../entities/auth-session.entity';
+import type { AccessTokenPayload } from '../interfaces/identity-hub-token.interface';
+import { getAuthCookieOptions, SESSION_COOKIE_NAME, usesSecureAuthCookies } from '../auth-cookies';
 import {
   AccessTokenFailureReason,
   AccessTokenVerificationError,
-  AuthCookieService,
-  AuthSessionService,
+  TokenVerifierService,
+} from '../services/token-verifier.service';
+import { AuthSessionService, SessionReauthorizationRequiredError } from '../services/auth-session.service';
+import {
   IdentityHubTokenProtocolError,
   IdentityHubTokenRequestError,
   IdentityHubUnavailableError,
-  SessionReauthorizationRequiredError,
-  TokenVerifierService,
-} from '../services';
+} from '../services/auth-identity.service';
 import { IS_PUBLIC_KEY } from '../decorators';
+import { EnvironmentVariables } from 'src/config';
 import type { User } from 'src/modules/users/entities';
 
 @Injectable()
 export class OAuthGuard implements CanActivate {
   private readonly logger = new Logger(OAuthGuard.name);
+  private readonly secureCookies: boolean;
 
   constructor(
     private readonly reflector: Reflector,
     private readonly authSessionService: AuthSessionService,
-    private readonly authCookieService: AuthCookieService,
     private readonly tokenVerifierService: TokenVerifierService,
-  ) {}
+    configService: ConfigService<EnvironmentVariables, true>,
+  ) {
+    this.secureCookies = usesSecureAuthCookies(configService.getOrThrow('GAZETTE_PUBLIC_URL', { infer: true }));
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -53,7 +59,7 @@ export class OAuthGuard implements CanActivate {
   }
 
   private async authenticate(request: Request, response: Response): Promise<User> {
-    const sessionId = this.authCookieService.getSessionId(request);
+    const sessionId = request.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
 
     if (!sessionId) {
       throw new UnauthorizedException('Authentication required. Please login.');
@@ -62,7 +68,7 @@ export class OAuthGuard implements CanActivate {
     let session = await this.authSessionService.findActiveSession(sessionId);
 
     if (!session) {
-      this.authCookieService.clearSessionCookie(response);
+      this.clearSessionCookie(response);
       throw new UnauthorizedException('Session expired. Please login again.');
     }
 
@@ -79,7 +85,10 @@ export class OAuthGuard implements CanActivate {
 
       session = await this.refreshSession(sessionId, session.accessToken, response);
       payload = await this.verifyRefreshedAccessToken(session.accessToken);
-      this.authCookieService.setSessionCookie(response, session.id, session.refreshTokenExpiresAt);
+      response.cookie(SESSION_COOKIE_NAME, session.id, {
+        ...getAuthCookieOptions(this.secureCookies),
+        expires: session.refreshTokenExpiresAt,
+      });
     }
 
     await this.assertTokenMatchesSession(payload, session, response);
@@ -96,7 +105,7 @@ export class OAuthGuard implements CanActivate {
       return await this.authSessionService.refreshSession(sessionId, expiredAccessToken);
     } catch (error: unknown) {
       if (error instanceof SessionReauthorizationRequiredError) {
-        this.authCookieService.clearSessionCookie(response);
+        this.clearSessionCookie(response);
         throw new UnauthorizedException('Session expired. Please login again.');
       }
 
@@ -157,7 +166,7 @@ export class OAuthGuard implements CanActivate {
 
     this.logger.warn(`Deleting local session due to access token failure: ${error.reason}`);
     await this.authSessionService.deleteSession(sessionId);
-    this.authCookieService.clearSessionCookie(response);
+    this.clearSessionCookie(response);
     throw new UnauthorizedException('Session is no longer valid. Please login again.');
   }
 
@@ -169,7 +178,11 @@ export class OAuthGuard implements CanActivate {
     if (payload.externalKey === session.user.externalKey) return;
 
     await this.authSessionService.deleteSession(session.id);
-    this.authCookieService.clearSessionCookie(response);
+    this.clearSessionCookie(response);
     throw new UnauthorizedException('Session identity is no longer valid. Please login again.');
+  }
+
+  private clearSessionCookie(response: Response): void {
+    response.clearCookie(SESSION_COOKIE_NAME, getAuthCookieOptions(this.secureCookies));
   }
 }

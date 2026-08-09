@@ -12,7 +12,7 @@ async function bootstrap() {
 
   try {
     app = await NestFactory.createApplicationContext(AppModule);
-    const configService = app.get<ConfigService<EnvironmentVariables>>(ConfigService);
+    const configService = app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
     const externalKey = getBootstrapAdminExternalKey(configService);
 
     const usersService = app.get(UsersService);
@@ -40,8 +40,8 @@ async function bootstrap() {
   }
 }
 
-function getBootstrapAdminExternalKey(configService: ConfigService<EnvironmentVariables>): string {
-  const externalKey = configService.get<string>('BOOTSTRAP_ADMIN_EXTERNAL_KEY')?.trim();
+function getBootstrapAdminExternalKey(configService: ConfigService<EnvironmentVariables, true>): string {
+  const externalKey = configService.get('BOOTSTRAP_ADMIN_EXTERNAL_KEY', { infer: true })?.trim();
 
   if (!externalKey) {
     throw new Error('BOOTSTRAP_ADMIN_EXTERNAL_KEY es obligatoria y no puede estar vacía.');

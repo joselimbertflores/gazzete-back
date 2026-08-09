@@ -5,8 +5,8 @@ import { randomBytes } from 'crypto';
 import { DataSource, LessThanOrEqual, Repository } from 'typeorm';
 
 import type { User } from 'src/modules/users/entities';
-import type { IdentityHubTokenResponse } from '../interfaces';
-import { AuthSession } from '../entities';
+import type { IdentityHubTokenResponse } from '../interfaces/identity-hub-token.interface';
+import { AuthSession } from '../entities/auth-session.entity';
 import { AuthIdentityService, IdentityHubTokenRequestError } from './auth-identity.service';
 
 export class SessionReauthorizationRequiredError extends Error {
@@ -15,8 +15,6 @@ export class SessionReauthorizationRequiredError extends Error {
     this.name = SessionReauthorizationRequiredError.name;
   }
 }
-
-type RefreshOutcome = 'current' | 'refreshed' | 'missing' | 'invalid_grant';
 
 @Injectable()
 export class AuthSessionService {
@@ -42,7 +40,10 @@ export class AuthSessionService {
   }
 
   async findActiveSession(sessionId: string): Promise<AuthSession | null> {
-    const session = await this.loadSession(sessionId);
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+      relations: { user: true },
+    });
 
     if (!session) return null;
 
@@ -55,22 +56,22 @@ export class AuthSessionService {
   }
 
   async refreshSession(sessionId: string, expiredAccessToken: string): Promise<AuthSession> {
-    const outcome = await this.dataSource.transaction<RefreshOutcome>(async (manager) => {
+    const requiresReauthorization = await this.dataSource.transaction<boolean>(async (manager) => {
       const repository = manager.getRepository(AuthSession);
       const session = await repository.findOne({
         where: { id: sessionId },
         lock: { mode: 'pessimistic_write' },
       });
 
-      if (!session) return 'missing';
+      if (!session) return true;
 
       if (session.refreshTokenExpiresAt.getTime() <= Date.now()) {
         await repository.delete({ id: session.id });
-        return 'missing';
+        return true;
       }
 
       if (session.accessToken !== expiredAccessToken) {
-        return 'current';
+        return false;
       }
 
       try {
@@ -79,18 +80,18 @@ export class AuthSessionService {
         session.refreshToken = tokens.refresh_token;
         session.refreshTokenExpiresAt = this.expiresAt(tokens.refresh_token_expires_in);
         await repository.save(session);
-        return 'refreshed';
+        return false;
       } catch (error: unknown) {
         if (error instanceof IdentityHubTokenRequestError && error.oauthError === 'invalid_grant') {
           await repository.delete({ id: session.id });
-          return 'invalid_grant';
+          return true;
         }
 
         throw error;
       }
     });
 
-    if (outcome === 'missing' || outcome === 'invalid_grant') {
+    if (requiresReauthorization) {
       throw new SessionReauthorizationRequiredError();
     }
 
@@ -102,13 +103,6 @@ export class AuthSessionService {
 
   async deleteSession(sessionId: string): Promise<void> {
     await this.sessionRepository.delete({ id: sessionId });
-  }
-
-  private loadSession(sessionId: string): Promise<AuthSession | null> {
-    return this.sessionRepository.findOne({
-      where: { id: sessionId },
-      relations: { user: true },
-    });
   }
 
   private expiresAt(expiresInSeconds: number): Date {

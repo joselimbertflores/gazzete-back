@@ -5,8 +5,12 @@ import { Injectable } from '@nestjs/common';
 import { isAxiosError } from 'axios';
 import { lastValueFrom } from 'rxjs';
 
-import { IdentityHubOAuthErrorResponse, IdentityHubTokenResponse } from '../interfaces';
+import { IdentityHubTokenResponse } from '../interfaces/identity-hub-token.interface';
 import { EnvironmentVariables } from 'src/config';
+
+interface IdentityHubOAuthErrorResponse {
+  error: string;
+}
 
 export class IdentityHubTokenRequestError extends Error {
   constructor(
@@ -38,14 +42,14 @@ export class AuthIdentityService {
 
   constructor(
     private readonly http: HttpService,
-    private readonly configService: ConfigService<EnvironmentVariables>,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
   ) {}
 
   async exchangeAuthorizationCode(code: string, codeVerifier: string): Promise<IdentityHubTokenResponse> {
     return this.requestTokens({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI'),
+      redirect_uri: this.getRedirectUri(),
       code_verifier: codeVerifier,
     });
   }
@@ -59,6 +63,7 @@ export class AuthIdentityService {
 
   private async requestTokens(payload: Record<string, string>): Promise<IdentityHubTokenResponse> {
     const body = new URLSearchParams(payload).toString();
+    let responseData: IdentityHubTokenResponse;
 
     try {
       const response = await lastValueFrom(
@@ -71,16 +76,8 @@ export class AuthIdentityService {
         }),
       );
 
-      return this.validateTokenResponse(response.data);
+      responseData = response.data;
     } catch (error: unknown) {
-      if (
-        error instanceof IdentityHubTokenRequestError ||
-        error instanceof IdentityHubUnavailableError ||
-        error instanceof IdentityHubTokenProtocolError
-      ) {
-        throw error;
-      }
-
       if (!isAxiosError(error) || error.response?.status === undefined || error.response.status >= 500) {
         throw new IdentityHubUnavailableError();
       }
@@ -92,11 +89,13 @@ export class AuthIdentityService {
 
       throw new IdentityHubTokenProtocolError();
     }
+
+    return this.validateTokenResponse(responseData);
   }
 
   private getClientAuthorizationHeader(): string {
-    const clientId = this.configService.getOrThrow<string>('OAUTH_CLIENT_ID');
-    const clientSecret = this.configService.getOrThrow<string>('OAUTH_CLIENT_SECRET');
+    const clientId = this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true });
+    const clientSecret = this.configService.getOrThrow('OAUTH_CLIENT_SECRET', { infer: true });
     const credentials = `${this.formEncode(clientId)}:${this.formEncode(clientSecret)}`;
 
     return `Basic ${Buffer.from(credentials, 'utf8').toString('base64')}`;
@@ -126,8 +125,13 @@ export class AuthIdentityService {
   }
 
   private getTokenUrl(): string {
-    const identityHubUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
+    const identityHubUrl = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
     return new URL('oauth/token', this.ensureTrailingSlash(identityHubUrl)).toString();
+  }
+
+  private getRedirectUri(): string {
+    const gazettePublicUrl = this.configService.getOrThrow('GAZETTE_PUBLIC_URL', { infer: true });
+    return new URL('/auth/callback', gazettePublicUrl).toString();
   }
 
   private ensureTrailingSlash(value: string): string {

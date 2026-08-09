@@ -9,7 +9,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService<EnvironmentVariables>);
+  const configService = app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
 
   app.setGlobalPrefix('api', {
     exclude: [
@@ -29,12 +29,13 @@ async function bootstrap() {
     }),
   );
 
-  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  const publicOrigin = new URL(configService.getOrThrow('GAZETTE_PUBLIC_URL', { infer: true })).origin;
+  const uiUrl = configService.get('GAZETTE_UI_URL', { infer: true });
 
-  if (corsOrigin) {
-    app.enableCors({ origin: corsOrigin, credentials: true });
+  if (uiUrl && new URL(uiUrl).origin !== publicOrigin) {
+    app.enableCors({ origin: new URL(uiUrl).origin, credentials: true });
   }
 
-  await app.listen(configService.getOrThrow<number>('PORT'));
+  await app.listen(configService.getOrThrow('PORT', { infer: true }));
 }
-bootstrap();
+void bootstrap();

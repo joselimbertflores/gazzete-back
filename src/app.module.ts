@@ -5,7 +5,7 @@ import { Module } from '@nestjs/common';
 
 import { join } from 'path';
 
-import { EnvironmentVariables, validate } from './config';
+import { EnvironmentVariables, environmentValidationSchema } from './config';
 
 import { DocumentsModule } from './modules/documents/documents.module';
 import { UsersModule } from './modules/users/users.module';
@@ -16,20 +16,25 @@ import { AuthModule } from './modules/auth/auth.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      validate,
+      cache: true,
+      validationSchema: environmentValidationSchema,
+      validationOptions: {
+        abortEarly: false,
+        allowUnknown: true,
+      },
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService<EnvironmentVariables>) => {
+      useFactory: (configService: ConfigService<EnvironmentVariables, true>) => {
         return {
           type: 'postgres',
-          host: configService.getOrThrow<string>('DATABASE_HOST'),
-          port: +configService.getOrThrow<number>('DATABASE_PORT'),
-          database: configService.getOrThrow<string>('DATABASE_NAME'),
-          username: configService.getOrThrow<string>('DATABASE_USER'),
-          password: configService.getOrThrow<string>('DATABASE_PASSWORD'),
+          host: configService.getOrThrow('DATABASE_HOST', { infer: true }),
+          port: configService.getOrThrow('DATABASE_PORT', { infer: true }),
+          database: configService.getOrThrow('DATABASE_NAME', { infer: true }),
+          username: configService.getOrThrow('DATABASE_USER', { infer: true }),
+          password: configService.getOrThrow('DATABASE_PASSWORD', { infer: true }),
           autoLoadEntities: true,
-          synchronize: configService.getOrThrow<string>('DB_SYNCHRONIZE') === 'true',
+          synchronize: configService.getOrThrow('DATABASE_SYNCHRONIZE', { infer: true }),
         };
       },
     }),

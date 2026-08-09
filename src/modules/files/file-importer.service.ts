@@ -9,16 +9,17 @@ import { v4 as uuid } from 'uuid';
 import mime from 'mime-types';
 
 import { StoredFile, StoredFileStatus } from './entities/stored-file.entity';
+import { EnvironmentVariables } from 'src/config';
 
 @Injectable()
 export class FileImporterService {
   private readonly BASE_UPLOAD_PATH: string;
 
   constructor(
-    private configService: ConfigService,
+    private configService: ConfigService<EnvironmentVariables, true>,
     @InjectRepository(StoredFile) private fileRepository: Repository<StoredFile>,
   ) {
-    const uploadPath = this.configService.getOrThrow<string>('UPLOAD_PATH');
+    const uploadPath = this.configService.getOrThrow('UPLOAD_PATH', { infer: true });
     this.BASE_UPLOAD_PATH = join(process.cwd(), uploadPath);
   }
 

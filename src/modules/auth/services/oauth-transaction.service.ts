@@ -3,12 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { DataSource, LessThanOrEqual, Repository } from 'typeorm';
 
-import { OAuthTransaction } from '../entities';
+import { OAuthTransaction } from '../entities/oauth-transaction.entity';
+
+export const OAUTH_TRANSACTION_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class OAuthTransactionService {
-  private readonly transactionTtlMs = 5 * 60 * 1000;
-
   constructor(
     @InjectRepository(OAuthTransaction)
     private readonly transactionRepository: Repository<OAuthTransaction>,
@@ -22,7 +22,7 @@ export class OAuthTransactionService {
       id: randomBytes(32).toString('base64url'),
       stateHash: this.hashState(state),
       codeVerifier,
-      expiresAt: new Date(Date.now() + this.transactionTtlMs),
+      expiresAt: new Date(Date.now() + OAUTH_TRANSACTION_TTL_MS),
     });
 
     return (await this.transactionRepository.save(transaction)).id;

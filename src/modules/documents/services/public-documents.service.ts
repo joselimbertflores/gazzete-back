@@ -14,7 +14,7 @@ export class PublicDocumentsService {
   constructor(
     @InjectRepository(DocumentRecordType) private docTypeRespository: Repository<DocumentRecordType>,
     @InjectRepository(DocumentRecord) private docRepository: Repository<DocumentRecord>,
-    private configService: ConfigService<EnvironmentVariables>,
+    private configService: ConfigService<EnvironmentVariables, true>,
     private fileService: FilesService,
   ) {}
 
@@ -286,7 +286,7 @@ export class PublicDocumentsService {
   }
 
   private buildPublicDocumentFileUrl(documentId: string) {
-    const baseUrl = this.configService.getOrThrow<string>('HOST');
+    const baseUrl = this.configService.getOrThrow('GAZETTE_PUBLIC_URL', { infer: true });
     const url = new URL(`/public-documents/${documentId}/file`, baseUrl);
     return url.toString();
   }

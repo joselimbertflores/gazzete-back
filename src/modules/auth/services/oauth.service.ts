@@ -1,14 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 
 import { AuthIdentityService } from './auth-identity.service';
 import { TokenVerifierService } from './token-verifier.service';
 import { UsersService } from 'src/modules/users/users.service';
 import { EnvironmentVariables } from 'src/config';
-import { PkceService } from './pkce.service';
 import { AuthSessionService } from './auth-session.service';
-import type { AuthSession } from '../entities';
+import type { AuthSession } from '../entities/auth-session.entity';
 import { OAuthTransactionService } from './oauth-transaction.service';
 
 @Injectable()
@@ -17,8 +16,7 @@ export class OAuthService {
     private readonly authIdentityService: AuthIdentityService,
     private readonly usersService: UsersService,
     private readonly tokenVerifierService: TokenVerifierService,
-    private readonly configService: ConfigService<EnvironmentVariables>,
-    private readonly pkceService: PkceService,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
     private readonly authSessionService: AuthSessionService,
     private readonly oauthTransactionService: OAuthTransactionService,
   ) {}
@@ -33,12 +31,12 @@ export class OAuthService {
   }
 
   async createAuthorizationRequest(): Promise<{ url: string; transactionId: string }> {
-    const identityHubUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
-    const clientId = this.configService.getOrThrow<string>('OAUTH_CLIENT_ID');
-    const redirectUri = this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI');
+    const identityHubUrl = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
+    const clientId = this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true });
+    const redirectUri = this.getRedirectUri();
     const state = randomBytes(32).toString('base64url');
-    const codeVerifier = this.pkceService.generateCodeVerifier();
-    const codeChallenge = this.pkceService.buildCodeChallenge(codeVerifier);
+    const codeVerifier = randomBytes(64).toString('base64url');
+    const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
     const authorizeUrl = new URL('oauth/authorize', this.ensureTrailingSlash(identityHubUrl));
 
     authorizeUrl.searchParams.set('client_id', clientId);
@@ -55,15 +53,12 @@ export class OAuthService {
     };
   }
 
-  consumeAuthorizationRequest(transactionId: string, state: string) {
-    return this.oauthTransactionService.consume(transactionId, state);
-  }
-
-  discardAuthorizationRequest(transactionId: string): Promise<void> {
-    return this.oauthTransactionService.discard(transactionId);
-  }
-
   private ensureTrailingSlash(value: string): string {
     return value.endsWith('/') ? value : `${value}/`;
+  }
+
+  private getRedirectUri(): string {
+    const gazettePublicUrl = this.configService.getOrThrow('GAZETTE_PUBLIC_URL', { infer: true });
+    return new URL('/auth/callback', gazettePublicUrl).toString();
   }
 }

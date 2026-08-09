@@ -6,7 +6,7 @@ import { DataSource } from 'typeorm';
 
 import { EnvironmentVariables } from '../config';
 
-const configService = new ConfigService<EnvironmentVariables>();
+const configService = new ConfigService<EnvironmentVariables, true>();
 const databasePort = Number(configService.getOrThrow<number>('DATABASE_PORT'));
 
 if (!Number.isInteger(databasePort)) {

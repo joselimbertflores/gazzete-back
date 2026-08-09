@@ -5,7 +5,7 @@ import { ArrayContains, ILike, QueryFailedError, Repository } from 'typeorm';
 
 import { IdentityHubUsersClientService } from './identity-hub-users-client.service';
 import { ImportUserFromIdentityDto, UpdateUserDto } from './dtos';
-import { AccessTokenPayload } from 'src/modules/auth/interfaces';
+import { AccessTokenPayload } from 'src/modules/auth/interfaces/identity-hub-token.interface';
 import { PaginationParamsDto } from 'src/modules/common';
 import { User, UserRole } from './entities';
 
