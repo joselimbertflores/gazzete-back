@@ -50,6 +50,9 @@ export class PublicDocumentsService {
       status: DocumentRecordStatus.PUBLISHED,
     });
 
+    qb.leftJoinAndSelect('doc.type', 'type');
+    qb.leftJoinAndSelect('doc.file', 'file');
+
     if (term?.trim()) {
       const normalizedTerm = term.trim();
 
@@ -63,7 +66,7 @@ export class PublicDocumentsService {
     }
 
     if (type) {
-      qb.andWhere('doc.typeId = :typeId', { typeId: type });
+      qb.andWhere('type.slug = :type', { type });
     }
 
     if (year) {
@@ -74,9 +77,6 @@ export class PublicDocumentsService {
       qb.andWhere('doc.legalStatus = :legalStatus', { legalStatus });
     }
 
-    qb.leftJoinAndSelect('doc.type', 'type');
-    qb.leftJoinAndSelect('doc.file', 'file');
-
     qb.leftJoin('doc.incomingRelation', 'incomingRelation');
     qb.leftJoin('incomingRelation.sourceDocument', 'sourceDocument', 'sourceDocument.status = :publishedStatus', {
       publishedStatus: DocumentRecordStatus.PUBLISHED,
@@ -86,6 +86,7 @@ export class PublicDocumentsService {
       'incomingRelation.type',
       'incomingRelation.note',
       'sourceDocument.id',
+      'sourceDocument.slug',
       'sourceDocument.code',
       'sourceDocumentType.name',
     ]);
@@ -104,9 +105,9 @@ export class PublicDocumentsService {
     };
   }
 
-  async getDocumentDetail(id: string) {
+  async getDocumentDetail(slug: string) {
     const doc = await this.docRepository.findOne({
-      where: { id, status: DocumentRecordStatus.PUBLISHED },
+      where: { slug, status: DocumentRecordStatus.PUBLISHED },
       relations: {
         type: true,
         file: true,
@@ -116,13 +117,14 @@ export class PublicDocumentsService {
     });
 
     if (!doc) {
-      throw new NotFoundException(`Document with ID ${id} not found or not published.`);
+      throw new NotFoundException(`Document with slug ${slug} not found or not published.`);
     }
 
     const { type, file, outgoingRelations, incomingRelation, ...props } = doc;
 
     return {
       id: props.id,
+      slug: props.slug,
       code: props.code,
       summary: props.summary,
       validUntil: props.validUntil,
@@ -141,10 +143,11 @@ export class PublicDocumentsService {
           relationType: relation.type,
           note: relation.note,
           document: {
-            id: doc.id,
-            code: doc.code,
-            summary: doc.summary,
-            typeName: doc.type.name,
+            id: relation.targetDocument.id,
+            slug: relation.targetDocument.slug,
+            code: relation.targetDocument.code,
+            summary: relation.targetDocument.summary,
+            typeName: relation.targetDocument.type.name,
           },
         })),
         incoming: incomingRelation
@@ -153,6 +156,7 @@ export class PublicDocumentsService {
               note: incomingRelation.note,
               document: {
                 id: incomingRelation.sourceDocument.id,
+                slug: incomingRelation.sourceDocument.slug,
                 code: incomingRelation.sourceDocument.code,
                 summary: incomingRelation.sourceDocument.summary,
                 typeName: incomingRelation.sourceDocument.type.name,
@@ -185,6 +189,16 @@ export class PublicDocumentsService {
     };
   }
 
+  getTypeOptions() {
+    return this.docTypeRespository
+      .createQueryBuilder('type')
+      .select(['type.name AS name', 'type.slug AS slug'])
+      .where('type.isActive = :isActive', { isActive: true })
+      .andWhere('type.slug IS NOT NULL')
+      .orderBy('type.name', 'ASC')
+      .getRawMany<{ name: string; slug: string }>();
+  }
+
   private async getPublicDocumentTypes() {
     const types: object = await this.docTypeRespository
       .createQueryBuilder('type')
@@ -192,12 +206,13 @@ export class PublicDocumentsService {
         status: DocumentRecordStatus.PUBLISHED,
       })
       .select([
-        'type.id AS id',
         'type.name AS name',
+        'type.slug AS slug',
         'type.description AS description',
         'COUNT(document.id)::int AS "documentsCount"',
       ])
       .where('type.isActive = :isActive', { isActive: true })
+      .andWhere('type.slug IS NOT NULL')
       .groupBy('type.id')
       .orderBy('type.name', 'ASC')
       .getRawMany();
@@ -294,6 +309,7 @@ export class PublicDocumentsService {
   private toPublicDocumentCard(doc: DocumentRecord) {
     return {
       id: doc.id,
+      slug: doc.slug,
       code: doc.code,
       summary: doc.summary,
       typeName: doc.type?.name,
@@ -306,6 +322,7 @@ export class PublicDocumentsService {
   private mapDocumentToDto(doc: DocumentRecord) {
     return {
       id: doc.id,
+      slug: doc.slug,
       code: doc.code,
       summary: doc.summary,
       legalStatus: doc.legalStatus,
@@ -326,6 +343,7 @@ export class PublicDocumentsService {
             note: doc.incomingRelation.note,
             document: {
               id: doc.incomingRelation.sourceDocument.id,
+              slug: doc.incomingRelation.sourceDocument.slug,
               code: doc.incomingRelation.sourceDocument.code,
               typeName: doc.incomingRelation.sourceDocument.type.name,
             },

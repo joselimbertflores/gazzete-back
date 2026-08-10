@@ -1,18 +1,15 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query, Res, StreamableFile } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, StreamableFile } from '@nestjs/common';
 
 import type { Response } from 'express';
 
-import { PublicDocumentsService, DocumentTypeService } from '../services';
+import { PublicDocumentsService } from '../services';
 import { Public } from 'src/modules/auth/decorators';
 import { FindPublicDocumentsDto } from '../dtos';
 
 @Public()
 @Controller('public-documents')
 export class PublicDocumentsController {
-  constructor(
-    private readonly publicDocumentsService: PublicDocumentsService,
-    private readonly docTypesService: DocumentTypeService,
-  ) {}
+  constructor(private readonly publicDocumentsService: PublicDocumentsService) {}
 
   @Get(':id/file')
   async getDocumentFile(
@@ -43,7 +40,7 @@ export class PublicDocumentsController {
 
   @Get('types')
   getTypeOptions() {
-    return this.docTypesService.getTypeOptions();
+    return this.publicDocumentsService.getTypeOptions();
   }
 
   @Get()
@@ -51,8 +48,8 @@ export class PublicDocumentsController {
     return this.publicDocumentsService.findAll(queryParams);
   }
 
-  @Get('detail/:id')
-  getPublicDocumentDetail(@Param('id', ParseUUIDPipe) id: string) {
-    return this.publicDocumentsService.getDocumentDetail(id);
+  @Get('detail/:slug')
+  getPublicDocumentDetail(@Param('slug') slug: string) {
+    return this.publicDocumentsService.getDocumentDetail(slug);
   }
 }
