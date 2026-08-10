@@ -167,6 +167,18 @@ export class PublicDocumentsService {
     };
   }
 
+  getSitemapDocuments() {
+    return this.docRepository
+      .createQueryBuilder('document')
+      .select('document.slug', 'slug')
+      .addSelect('document.updatedAt', 'updatedAt')
+      .where('document.status = :status', { status: DocumentRecordStatus.PUBLISHED })
+      .andWhere('document.slug IS NOT NULL')
+      .andWhere("document.slug <> ''")
+      .orderBy('document.slug', 'ASC')
+      .getRawMany<{ slug: string; updatedAt: Date | string }>();
+  }
+
   async incrementDownloadCount(id: string) {
     await this.docRepository.increment({ id }, 'downloadCount', 1);
   }

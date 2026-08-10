@@ -1,9 +1,6 @@
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ServeStaticModule } from '@nestjs/serve-static';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module } from '@nestjs/common';
-
-import { join } from 'path';
 
 import { EnvironmentVariables, environmentValidationSchema } from './config';
 
@@ -37,10 +34,6 @@ import { AuthModule } from './modules/auth/auth.module';
           synchronize: configService.getOrThrow('DATABASE_SYNCHRONIZE', { infer: true }),
         };
       },
-    }),
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'public', 'browser'),
-      exclude: ['/api/{*path}', '/auth/login', '/auth/callback', '/public-documents/{*path}'],
     }),
     AuthModule,
     UsersModule,

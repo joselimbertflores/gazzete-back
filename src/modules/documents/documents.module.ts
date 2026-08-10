@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   DocumentController,
   PublicDocumentsController,
+  PublicSeoController,
   DocumentTypeController,
   DocumentRelationController,
 } from './controllers';
@@ -13,7 +14,13 @@ import { FilesModule } from '../files/files.module';
 import { GazetteImporterService } from './import/gazette-importer.service';
 
 @Module({
-  controllers: [DocumentTypeController, DocumentController, DocumentRelationController, PublicDocumentsController],
+  controllers: [
+    DocumentTypeController,
+    DocumentController,
+    DocumentRelationController,
+    PublicDocumentsController,
+    PublicSeoController,
+  ],
   imports: [TypeOrmModule.forFeature([DocumentRecord, DocumentRelation, DocumentRecordType]), FilesModule],
   providers: [
     DocumentService,

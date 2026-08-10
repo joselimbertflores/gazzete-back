@@ -16,6 +16,8 @@ async function bootstrap() {
       { path: 'auth/login', method: RequestMethod.GET },
       { path: 'auth/callback', method: RequestMethod.GET },
       { path: 'public-documents/:id/file', method: RequestMethod.GET },
+      { path: 'sitemap.xml', method: RequestMethod.GET },
+      { path: 'robots.txt', method: RequestMethod.GET },
     ],
   });
 
