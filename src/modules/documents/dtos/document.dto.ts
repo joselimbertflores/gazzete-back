@@ -1,4 +1,3 @@
-import { PartialType } from '@nestjs/mapped-types';
 import {
   IsDate,
   IsEnum,
@@ -11,25 +10,35 @@ import {
   Min,
   Max,
   IsBoolean,
+  MaxLength,
+  Matches,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 import { DocumentLegalStatus, DocumentRecordStatus, DocumentRelationType } from '../entities';
 import { IsAfterOrEqual, IsBeforeOrEqual } from '../validators';
+import { normalizeDocumentSuffix } from '../helpers';
 import { PaginationParamsDto } from 'src/modules/common';
+
+function normalizeSuffixInput(value: unknown): unknown {
+  return typeof value === 'string' || value == null ? normalizeDocumentSuffix(value) : value;
+}
+
 export class CreateDocumentDto {
   @IsInt()
   @Type(() => Number)
   typeId: number;
 
   @IsInt()
+  @Min(1)
   @Type(() => Number)
   correlativeNumber: number;
 
-  @IsString()
-  @IsNotEmpty()
+  @Transform(({ value }) => normalizeSuffixInput(value as unknown))
   @IsOptional()
-  suffix?: string;
+  @MaxLength(5)
+  @Matches(/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/)
+  suffix?: string | null;
 
   @IsString()
   @IsNotEmpty()
@@ -51,14 +60,14 @@ export class CreateDocumentDto {
 
   @IsDate()
   @Type(() => Date)
-  @IsAfterOrEqual('publicationDate', {
-    message: 'La vigencia no puede ser anterior a la publicación',
-  })
   publicationDate: Date;
 
   @IsDate()
   @Type(() => Date)
   @IsOptional()
+  @IsAfterOrEqual('publicationDate', {
+    message: 'La vigencia no puede ser anterior a la publicación',
+  })
   validUntil?: Date;
 
   @IsUUID()
@@ -73,7 +82,53 @@ export class CreateDocumentDto {
   isFeatured?: boolean;
 }
 
-export class UpdateDocumentDto extends PartialType(CreateDocumentDto) {}
+export class UploadDocumentFileQueryDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(new Date().getFullYear())
+  year: number;
+}
+
+export class UpdateDocumentDto {
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  summary?: string;
+
+  @IsDate()
+  @Type(() => Date)
+  @IsOptional()
+  @IsBeforeOrEqual('publicationDate', {
+    message: 'La fecha de promulgación no puede ser posterior a la publicación',
+  })
+  promulgationDate?: Date;
+
+  @IsDate()
+  @Type(() => Date)
+  @IsOptional()
+  publicationDate?: Date;
+
+  @IsDate()
+  @Type(() => Date)
+  @IsOptional()
+  @IsAfterOrEqual('publicationDate', {
+    message: 'La vigencia no puede ser anterior a la publicación',
+  })
+  validUntil?: Date;
+
+  @IsUUID()
+  @IsOptional()
+  fileId?: string;
+
+  @IsEnum(DocumentRecordStatus)
+  @IsOptional()
+  status?: DocumentRecordStatus;
+
+  @IsBoolean()
+  @IsOptional()
+  isFeatured?: boolean;
+}
 
 export class SearchDocumentForRelationDto {
   @IsString()

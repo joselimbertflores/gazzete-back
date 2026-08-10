@@ -36,6 +36,9 @@ export enum DocumentRecordStatus {
   unique: true,
   where: `"suffix" IS NULL`,
 })
+@Index('UQ_documents_slug', ['slug'], {
+  unique: true,
+})
 @Entity('documents')
 export class DocumentRecord {
   @PrimaryGeneratedColumn('uuid')
@@ -54,7 +57,7 @@ export class DocumentRecord {
   @Column({ type: 'integer' })
   correlativeNumber: number;
 
-  @Column({ type: 'varchar', length: 10, nullable: true })
+  @Column({ type: 'varchar', length: 5, nullable: true })
   suffix: string | null;
 
   @Column({ type: 'integer' })
@@ -62,6 +65,9 @@ export class DocumentRecord {
 
   @Column({ type: 'varchar', length: 30 })
   code: string;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  slug: string | null;
 
   /**
    * Campo técnico para soportar unicidad flexible:

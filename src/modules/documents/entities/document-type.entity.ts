@@ -1,4 +1,4 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 
 import { DocumentRecord } from './document.entity';
 
@@ -7,6 +7,9 @@ export enum DocumentNumberingMode {
   GLOBAL = 'GLOBAL',
 }
 
+@Index('UQ_document_types_slug', ['slug'], {
+  unique: true,
+})
 @Entity('document_types')
 export class DocumentRecordType {
   @PrimaryGeneratedColumn()
@@ -14,6 +17,9 @@ export class DocumentRecordType {
 
   @Column({ unique: true })
   name: string;
+
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  slug: string | null;
 
   @Column({ type: 'text', nullable: true })
   description?: string;

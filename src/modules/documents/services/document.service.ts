@@ -11,14 +11,9 @@ import { ConfigService } from '@nestjs/config';
 
 import { Brackets, DataSource, QueryFailedError, Repository } from 'typeorm';
 
-import {
-  DocumentRecord,
-  DocumentRelation,
-  DocumentRecordType,
-  DocumentLegalStatus,
-  DocumentNumberingMode,
-} from '../entities';
+import { DocumentRecord, DocumentRecordType, DocumentNumberingMode } from '../entities';
 import { UpdateDocumentDto, CreateDocumentDto, FindAllDocumentsQueryDto } from '../dtos';
+import { generateDocumentIdentifiers } from '../helpers';
 import { FilesService } from 'src/modules/files/files.service';
 import { User } from 'src/modules/users/entities';
 import { EnvironmentVariables } from 'src/config';
@@ -74,22 +69,35 @@ export class DocumentService {
   }
 
   async create(dto: CreateDocumentDto, currentUser: User) {
-    const { typeId, fileId, ...rest } = dto;
+    const { typeId, fileId, suffix = null, ...properties } = dto;
     try {
       const document = await this.dataSource.transaction(async (manager) => {
-        const type = await manager.findOneBy(DocumentRecordType, { id: typeId });
+        const type = await manager.findOne(DocumentRecordType, {
+          where: { id: typeId },
+          lock: { mode: 'pessimistic_read' },
+        });
         if (!type) throw new BadRequestException('Invalid document type');
+        if (!type.slug) {
+          throw new ConflictException(
+            'El tipo de documento no tiene un slug. Ejecute el backfill antes de utilizarlo.',
+          );
+        }
 
         const file = await this.fileService.getPendingFileOrFail(fileId, manager);
 
-        const numberingScope = this.buildNumberingScope(type, rest.year);
-        const code = this.generateCode(rest.correlativeNumber, rest.suffix ?? null, rest.year);
+        const numberingScope = this.buildNumberingScope(type, properties.year);
+        const identifiers = generateDocumentIdentifiers(
+          type.slug,
+          properties.correlativeNumber,
+          suffix,
+          properties.year,
+        );
 
         const document = manager.create(DocumentRecord, {
-          ...rest,
+          ...properties,
+          ...identifiers,
           type,
           file,
-          code,
           numberingScope,
           createdBy: currentUser,
         });
@@ -106,8 +114,22 @@ export class DocumentService {
     }
   }
 
+  uploadFileForCreate(file: Express.Multer.File, year: number) {
+    return this.fileService.uploadDocument(file, year);
+  }
+
+  async uploadFileForUpdate(id: string, file: Express.Multer.File) {
+    const document = await this.documentRepository.findOne({
+      where: { id },
+      select: { id: true, year: true },
+    });
+    if (!document) throw new NotFoundException('Document not found');
+
+    return this.fileService.uploadDocument(file, document.year);
+  }
+
   async update(id: string, dto: UpdateDocumentDto, currentUser: User) {
-    const { typeId, fileId, ...rest } = dto;
+    const { fileId, ...properties } = dto;
 
     try {
       const document = await this.dataSource.transaction(async (manager) => {
@@ -116,12 +138,6 @@ export class DocumentService {
           relations: { file: true, type: true },
         });
         if (!document) throw new NotFoundException('Document not found');
-
-        if (typeId) {
-          const type = await manager.findOne(DocumentRecordType, { where: { id: typeId } });
-          if (!type) throw new BadRequestException('Invalid document type');
-          document.type = type;
-        }
 
         if (fileId && fileId !== document.file.id) {
           const newFile = await this.fileService.getPendingFileOrFail(fileId, manager);
@@ -134,9 +150,7 @@ export class DocumentService {
           await this.fileService.markAsDeleted(oldFile.id, manager);
         }
 
-        Object.assign(document, rest);
-        document.code = this.generateCode(document.correlativeNumber, document.suffix, document.year);
-        document.numberingScope = this.buildNumberingScope(document.type, document.year);
+        Object.assign(document, properties);
         document.updatedBy = currentUser;
 
         return await manager.save(document);
@@ -208,12 +222,6 @@ export class DocumentService {
         },
       })),
     };
-  }
-
-  private generateCode(correlativeNumber: number, suffix: string | null, year: number) {
-    const normalizedSuffix = suffix?.trim().toUpperCase();
-    const formattedNumber = correlativeNumber.toString().padStart(3, '0');
-    return normalizedSuffix ? `${formattedNumber}-${normalizedSuffix}/${year}` : `${formattedNumber}/${year}`;
   }
 
   private buildNumberingScope(type: DocumentRecordType, year: number): string {
