@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "import:gazette": "ts-node -r tsconfig-paths/register scripts/import-gazette.ts",
     "bootstrap:admin": "ts-node -r tsconfig-paths/register scripts/bootstrap-admin.ts",
+    "backfill:document-slugs": "ts-node -r tsconfig-paths/register scripts/backfill-document-slugs.ts",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts"

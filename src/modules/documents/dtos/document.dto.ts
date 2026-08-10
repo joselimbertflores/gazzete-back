@@ -17,7 +17,7 @@ import { Transform, Type } from 'class-transformer';
 
 import { DocumentLegalStatus, DocumentRecordStatus, DocumentRelationType } from '../entities';
 import { IsAfterOrEqual, IsBeforeOrEqual } from '../validators';
-import { normalizeDocumentSuffix } from '../helpers';
+import { DOCUMENT_SUFFIX_MAX_LENGTH, DOCUMENT_SUFFIX_PATTERN, normalizeDocumentSuffix } from '../helpers';
 import { PaginationParamsDto } from 'src/modules/common';
 
 function normalizeSuffixInput(value: unknown): unknown {
@@ -36,8 +36,8 @@ export class CreateDocumentDto {
 
   @Transform(({ value }) => normalizeSuffixInput(value as unknown))
   @IsOptional()
-  @MaxLength(5)
-  @Matches(/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/)
+  @MaxLength(DOCUMENT_SUFFIX_MAX_LENGTH)
+  @Matches(DOCUMENT_SUFFIX_PATTERN)
   suffix?: string | null;
 
   @IsString()

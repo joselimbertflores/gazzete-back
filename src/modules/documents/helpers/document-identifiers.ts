@@ -1,6 +1,19 @@
+import { DocumentNumberingMode } from '../entities/document-type.entity';
+
+export const DOCUMENT_SUFFIX_MAX_LENGTH = 5;
+export const DOCUMENT_SUFFIX_PATTERN = /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
+
 export function normalizeDocumentSuffix(suffix: string | null | undefined): string | null {
   const normalizedSuffix = suffix?.trim().toUpperCase();
   return normalizedSuffix || null;
+}
+
+export function isValidDocumentSuffix(suffix: string | null): boolean {
+  return suffix === null || (suffix.length <= DOCUMENT_SUFFIX_MAX_LENGTH && DOCUMENT_SUFFIX_PATTERN.test(suffix));
+}
+
+export function generateDocumentNumberingScope(numberingMode: DocumentNumberingMode, year: number): string {
+  return numberingMode === DocumentNumberingMode.GLOBAL ? 'GLOBAL' : String(year);
 }
 
 export function generateDocumentCode(correlativeNumber: number, normalizedSuffix: string | null, year: number): string {

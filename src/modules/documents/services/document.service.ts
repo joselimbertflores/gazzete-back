@@ -11,9 +11,9 @@ import { ConfigService } from '@nestjs/config';
 
 import { Brackets, DataSource, QueryFailedError, Repository } from 'typeorm';
 
-import { DocumentRecord, DocumentRecordType, DocumentNumberingMode } from '../entities';
+import { DocumentRecord, DocumentRecordType } from '../entities';
 import { UpdateDocumentDto, CreateDocumentDto, FindAllDocumentsQueryDto } from '../dtos';
-import { generateDocumentIdentifiers } from '../helpers';
+import { generateDocumentIdentifiers, generateDocumentNumberingScope } from '../helpers';
 import { FilesService } from 'src/modules/files/files.service';
 import { User } from 'src/modules/users/entities';
 import { EnvironmentVariables } from 'src/config';
@@ -77,6 +77,8 @@ export class DocumentService {
           lock: { mode: 'pessimistic_read' },
         });
         if (!type) throw new BadRequestException('Invalid document type');
+        // TODO(slug-backfill): Remove after historical slugs are backfilled
+        // and document_types.slug is enforced as NOT NULL.
         if (!type.slug) {
           throw new ConflictException(
             'El tipo de documento no tiene un slug. Ejecute el backfill antes de utilizarlo.',
@@ -85,7 +87,7 @@ export class DocumentService {
 
         const file = await this.fileService.getPendingFileOrFail(fileId, manager);
 
-        const numberingScope = this.buildNumberingScope(type, properties.year);
+        const numberingScope = generateDocumentNumberingScope(type.numberingMode, properties.year);
         const identifiers = generateDocumentIdentifiers(
           type.slug,
           properties.correlativeNumber,
@@ -222,10 +224,6 @@ export class DocumentService {
         },
       })),
     };
-  }
-
-  private buildNumberingScope(type: DocumentRecordType, year: number): string {
-    return type.numberingMode === DocumentNumberingMode.GLOBAL ? 'GLOBAL' : String(year);
   }
 
   private toDto(doc: DocumentRecord) {

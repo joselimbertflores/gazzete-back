@@ -18,6 +18,8 @@ export class DocumentRecordType {
   @Column({ unique: true })
   name: string;
 
+  // TODO(slug-backfill): Set nullable to false and change this type to string
+  // after the historical slug backfill succeeds.
   @Column({ type: 'varchar', length: 120, nullable: true })
   slug: string | null;
 

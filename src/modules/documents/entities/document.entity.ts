@@ -66,6 +66,8 @@ export class DocumentRecord {
   @Column({ type: 'varchar', length: 30 })
   code: string;
 
+  // TODO(slug-backfill): Set nullable to false and change this type to string
+  // after the historical slug backfill succeeds.
   @Column({ type: 'varchar', length: 200, nullable: true })
   slug: string | null;
 
