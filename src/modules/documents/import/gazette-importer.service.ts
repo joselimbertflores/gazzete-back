@@ -1,11 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import { parse } from 'csv-parse/sync';
 import * as fs from 'fs';
 import * as path from 'path';
 
 import { FileImporterService } from 'src/modules/files/file-importer.service';
-import { DocumentService } from '../services';
 import { QueryFailedError } from 'typeorm';
 
 export interface ImportParams {
@@ -34,50 +33,15 @@ interface ParsedData {
 
 @Injectable()
 export class GazetteImporterService {
-  private readonly logger = new Logger(GazetteImporterService.name);
+  constructor(private filesService: FileImporterService) {}
 
-  constructor(
-    private filesService: FileImporterService,
-    private documentsService: DocumentService,
-  ) {}
-
-  async run({ csvPath, typeId, filesFolder }: ImportParams) {
+  async run({ csvPath, filesFolder }: ImportParams) {
     const records = this.readCsv(csvPath);
 
-    // let missingFile = 0;
-    // let invalidCode = 0;
-
     for (const row of records) {
-      // try {
-      //   const parsed = this.parseRow(row);
-      //   if (!parsed.fileName) {
-      //     missingFile++;
-      //     console.warn(`⚠ Sin fileName`);
-      //     console.warn(`→ CSV: ${csvPath}`);
-      //     console.warn(`→ Código: ${row['Nro']}`);
-      //     console.warn(`→ HTML: ${row['Descargar']}`);
-      //     console.log('');
-      //     continue;
-      //   }
-      //   if (!parsed.correlativeNumber || !parsed.year) {
-      //     invalidCode++;
-      //     console.warn(`⚠ Código inválido`);
-      //     console.warn(`→ CSV: ${csvPath}`);
-      //     console.warn(`→ Valor: ${row['Nro']}`);
-      //     console.log('');
-      //     continue;
-      //   }
-      // } catch (error) {
-      //   console.error('❌ Error inesperado:', error);
-      // }
       const parsed = this.parseRow(row);
-      await this.processRecord(parsed, typeId, filesFolder);
+      await this.processRecord(parsed, filesFolder);
     }
-
-    // console.log(`✅ Validación terminada: ${csvPath}`);
-    // console.log(`→ Sin archivo: ${missingFile}`);
-    // console.log(`→ Código inválido: ${invalidCode}`);
-    // console.log('');
   }
 
   private readCsv(csvPath: string): CsvData[] {
@@ -91,10 +55,10 @@ export class GazetteImporterService {
       columns: true,
       skip_empty_lines: true,
       skip_records_with_empty_values: true,
-      delimiter: ';', // 👈 CLAVE
-      relax_quotes: true, // 👈 por HTML
-      relax_column_count: true, // 👈 por inconsistencias
-      trim: true, // 👈 limpia espacios
+      delimiter: ';',
+      relax_quotes: true,
+      relax_column_count: true,
+      trim: true,
       quote: false,
     });
     return records;
@@ -114,14 +78,6 @@ export class GazetteImporterService {
       fileName,
     };
   }
-
-  // private parseCode(code: string) {
-  //   const [num, year] = code.split('/');
-  //   return {
-  //     correlativeNumber: Number(num),
-  //     year: Number(year),
-  //   };
-  // }
 
   private parseCode(code: string): {
     correlativeNumber: number | null;
@@ -176,43 +132,25 @@ export class GazetteImporterService {
     return fileName || null;
   }
 
-  private async processRecord(parsed: ParsedData, typeId: number, filesFolder: string) {
-    // 🔒 Seguridad (aunque ya validaste antes)
+  private async processRecord(parsed: ParsedData, filesFolder: string) {
     if (!parsed.fileName || !parsed.correlativeNumber || !parsed.year) {
       return;
     }
 
     const filePath = path.join(process.cwd(), filesFolder, parsed.fileName.trim());
 
-    // 📂 Validar archivo físico
     if (!fs.existsSync(filePath)) {
       console.warn(`⚠ Archivo no encontrado: ${parsed.fileName} - path: ${filePath}`);
       return;
     }
 
     try {
-      // 1️⃣ Crear archivo (PENDING)
-      const storedFile = await this.filesService.createFromPath(filePath, parsed.year);
-
-      // 2️⃣ Crear documento (transacción + activa archivo)
-      // await this.documentsService.create({
-      //   typeId,
-      //   fileId: storedFile.id,
-      //   summary: parsed.summary,
-      //   correlativeNumber: parsed.correlativeNumber,
-      //   ...(parsed.suffix && {
-      //     suffix: parsed.suffix,
-      //   }),
-      //   year: parsed.year,
-      //   publicationDate: parsed.publicationDate,
-      // });
+      await this.filesService.createFromPath(filePath, parsed.year);
     } catch (error: unknown) {
-      // ⚠ duplicado → ignorar silenciosamente
       if (error instanceof QueryFailedError && error['code'] === '23505') {
         return;
       }
 
-      // ❌ error real
       console.error(`❌ Error procesando ${parsed.fileName}`);
       console.error(parsed);
       console.log(error);

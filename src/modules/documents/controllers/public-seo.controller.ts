@@ -45,8 +45,8 @@ export class PublicSeoController {
   getRobots(): string {
     return [
       'User-agent: *',
-      'Disallow: /admin/',
-      'Disallow: /auth/',
+      'Disallow: /admin',
+      'Disallow: /auth',
       '',
       `Sitemap: ${this.buildPublicUrl('/sitemap.xml')}`,
       '',

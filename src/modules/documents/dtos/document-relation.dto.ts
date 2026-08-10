@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { DocumentRelationType } from '../entities';
 
 export class SaveDocumentRelationDto {
