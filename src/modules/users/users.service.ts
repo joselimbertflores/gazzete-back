@@ -143,15 +143,9 @@ export class UsersService {
       }
     }
 
-    let shouldSave = false;
-
     if (user.fullName !== fullName) {
+      await this.userRepository.update({ id: user.id }, { fullName });
       user.fullName = fullName;
-      shouldSave = true;
-    }
-
-    if (shouldSave) {
-      user = await this.userRepository.save(user);
     }
 
     return user;

@@ -85,13 +85,15 @@ export class OAuthGuard implements CanActivate {
 
       session = await this.refreshSession(sessionId, session.accessToken, response);
       payload = await this.verifyRefreshedAccessToken(session.accessToken);
-      response.cookie(SESSION_COOKIE_NAME, session.id, {
-        ...getAuthCookieOptions(this.secureCookies),
-        expires: session.refreshTokenExpiresAt,
-      });
     }
 
     await this.assertTokenMatchesSession(payload, session, response);
+
+    // Re-sync the persisted expiry even if a previous refresh was followed by a temporary JWKS failure.
+    response.cookie(SESSION_COOKIE_NAME, session.id, {
+      ...getAuthCookieOptions(this.secureCookies),
+      expires: session.refreshTokenExpiresAt,
+    });
 
     return session.user;
   }

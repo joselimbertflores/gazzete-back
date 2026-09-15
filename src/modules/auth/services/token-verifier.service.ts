@@ -29,7 +29,9 @@ export class TokenVerifierService {
   private readonly jwksClient: JwksClient;
 
   constructor(private readonly configService: ConfigService<EnvironmentVariables, true>) {
-    const identityHubUrl = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
+    const identityHubUrl =
+      this.configService.get('IDENTITY_HUB_INTERNAL_URL', { infer: true }) ??
+      this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
     const jwksUri = new URL('.well-known/jwks.json', this.ensureTrailingSlash(identityHubUrl)).toString();
 
     this.jwksClient = new JwksClient({

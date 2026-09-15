@@ -105,13 +105,9 @@ export class OAuthController {
   }
 
   private buildFrontendUrl(path: string, params?: Record<string, string>): string {
-    const uiBaseUrl = this.configService.get('GAZETTE_UI_URL', { infer: true });
-
-    if (!uiBaseUrl) {
-      const searchParams = new URLSearchParams(params);
-      const queryString = searchParams.toString();
-      return queryString ? `${path}?${queryString}` : path;
-    }
+    const uiBaseUrl =
+      this.configService.get('GAZETTE_UI_URL', { infer: true }) ??
+      this.configService.getOrThrow('GAZETTE_PUBLIC_URL', { infer: true });
 
     const url = new URL(path, this.ensureTrailingSlash(uiBaseUrl));
 

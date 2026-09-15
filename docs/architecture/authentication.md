@@ -1,67 +1,35 @@
-# SSO de Gaceta
+# Autenticación de Gaceta
 
-Gaceta Backend es un cliente OAuth 2.0 confidential de Identity Hub. El navegador nunca recibe los tokens de Identity Hub: el backend completa Authorization Code con PKCE, guarda los tokens en PostgreSQL y entrega al navegador únicamente una cookie de sesión opaca.
+Gaceta es un cliente OAuth 2.0 confidencial de Identity Hub. Usa Authorization Code con PKCE S256 y mantiene una sesión local server-side. El navegador recibe solamente una cookie `HttpOnly` con un identificador opaco; el access token, el refresh token y el secreto del cliente permanecen en el backend.
 
-## Arquitectura
+## URLs y redirects
 
-- **Identity Hub** autentica al usuario, controla su acceso global a Gaceta y emite los tokens OAuth.
-- **Gaceta Backend** inicia el login, recibe el callback, valida los tokens y mantiene la sesión local.
-- **Gaceta Frontend** navega a las rutas de Auth del backend y consume la API con la cookie local.
-- **PostgreSQL** guarda las transacciones OAuth temporales, las sesiones y los usuarios locales.
+En la convención común, `CLIENT_PUBLIC_URL` corresponde a `GAZETTE_PUBLIC_URL` y `CLIENT_UI_URL` a `GAZETTE_UI_URL`.
 
-Identity Hub es la fuente de verdad para identidad y acceso a la aplicación. Gaceta conserva solamente la proyección local del usuario y sus roles propios.
+- `CLIENT_PUBLIC_URL` es la URL canónica del backend. Expone `GET /auth/login` y `GET /auth/callback`.
+- `launchUrl` normalmente es `<CLIENT_PUBLIC_URL>/auth/login`.
+- `redirectUri` es `<CLIENT_PUBLIC_URL>/auth/callback` y debe estar registrado en Identity Hub.
+- `CLIENT_UI_URL` es opcional para un frontend separado: define los redirects visuales y habilita CORS para ese origen con credenciales. Si se omite, se usa `CLIENT_PUBLIC_URL`.
+- El destino visual final lo decide Gaceta después del callback. Actualmente el éxito va a `/admin`; los errores van a `/auth/error`, sobre `CLIENT_UI_URL ?? CLIENT_PUBLIC_URL`.
+- `IDENTITY_HUB_PUBLIC_URL` se usa para `/oauth/authorize` y siempre como issuer (`iss`) esperado.
+- `IDENTITY_HUB_INTERNAL_URL` es opcional para `/oauth/token`, JWKS y el directorio interno; si se omite, esos accesos usan `IDENTITY_HUB_PUBLIC_URL`.
 
-## Login y callback
+## Login y sesión
 
-1. El navegador abre `GET /auth/login`.
-2. Gaceta genera `state`, `code_verifier` y el `code_challenge` S256.
-3. Guarda una transacción de cinco minutos en `oauth_transactions`. La tabla contiene el hash de `state` y el `code_verifier`; la cookie HTTP-only `gazette_oauth_transaction` contiene únicamente el identificador aleatorio de esa transacción.
-4. Redirige a Identity Hub `/oauth/authorize` con `response_type=code`, PKCE, el client ID y el callback derivado de `GAZETTE_PUBLIC_URL`.
-5. Identity Hub autentica al usuario y vuelve a `GET /auth/callback` con `code` y `state`.
-6. Gaceta consume la transacción de forma atómica, valida `state` y la elimina aunque el intento sea inválido. Una transacción no se puede reutilizar.
-7. Canjea el code en Identity Hub `/oauth/token`, autenticándose con `OAUTH_CLIENT_ID` y `OAUTH_CLIENT_SECRET` mediante HTTP Basic y enviando el `code_verifier`.
-8. Valida el access token, sincroniza el usuario local y crea la sesión.
-9. Redirige a `GAZETTE_UI_URL/admin`, o a `/admin` cuando frontend y backend comparten origen. Los errores vuelven a `/auth/error`.
+`GET /auth/login` genera `state`, `code_verifier` y `code_challenge`. La transacción OAuth temporal guarda server-side el hash de `state` y el verifier; su cookie contiene sólo un ID aleatorio. En el callback, la transacción se valida y consume una sola vez, y el backend canjea el code usando PKCE y autenticación del cliente.
 
-## Sesión, refresh y logout
+Tras validar el access token y sincronizar el usuario local, Gaceta crea una fila en `auth_sessions`. La cookie `gazette_session` contiene sólo el ID de esa sesión; los tokens se almacenan exclusivamente en el backend.
 
-La sesión se persiste en `auth_sessions` con un ID aleatorio, el usuario local, los tokens de Identity Hub y la expiración del refresh token. La cookie HTTP-only `gazette_session` contiene solo el ID de la sesión; usa `SameSite=lax` y marca `Secure` cuando `GAZETTE_PUBLIC_URL` usa HTTPS.
+La vigencia del access token se obtiene del claim `exp` del JWT; la sesión no guarda `accessTokenExpiresAt`. Cuando expira, el backend usa el refresh token, exige su rotación y persiste el nuevo par. El refresh se serializa por sesión mediante bloqueo de la fila para que requests concurrentes no consuman el mismo token.
 
-El guard global resuelve esa sesión y valida el access token en cada ruta protegida. Si el access token expiró, Gaceta usa el refresh token server-side y persiste los tokens rotados. El refresh se serializa por sesión para evitar que dos requests consuman simultáneamente el mismo token.
+Un refresh vencido o rechazado con `invalid_grant`, una sesión inexistente o una identidad que ya no coincide eliminan la sesión y exigen autenticarse de nuevo. Los errores transitorios de Identity Hub, del endpoint de token o de JWKS conservan la sesión local y permiten reintentar.
 
-Una sesión se elimina cuando expira el refresh token, Identity Hub rechaza el refresh como `invalid_grant` o la identidad del token ya no coincide con el usuario local. `POST /api/auth/logout` elimina la fila y limpia las cookies locales. Es un logout de Gaceta: no cierra la sesión global que el navegador pueda mantener en Identity Hub.
+`POST /api/auth/logout` elimina la sesión y las cookies locales. No cierra necesariamente la sesión SSO global que el navegador mantiene en Identity Hub.
 
-`GET /api/auth/me` devuelve el shadow user asociado a la sesión vigente.
+## JWT, usuarios y roles
 
-## Validación JWT y JWKS
+Gaceta valida firma `RS256`, `kid`, audience, vigencia y los claims `sub`, `externalKey` y `name`. `iss` se valida siempre contra `IDENTITY_HUB_PUBLIC_URL`, aunque JWKS se consulte mediante la URL interna.
 
-Antes de aceptar un access token, Gaceta valida:
+`externalKey` es el vínculo estable con Identity Hub. En el primer login se crea el usuario JIT con rol `USER`. En accesos posteriores se sincroniza el nombre sin sobrescribir los roles locales existentes.
 
-- firma `RS256` y `kid` mediante el JWKS publicado por Identity Hub;
-- issuer igual a `IDENTITY_HUB_PUBLIC_URL`;
-- audience igual a `OAUTH_CLIENT_ID`;
-- expiración y vigencia temporal;
-- claims de identidad `sub`, `externalKey` y `name`.
-
-El `externalKey` del token también debe coincidir con el usuario asociado a `auth_sessions`.
-
-## Shadow users y roles locales
-
-Los usuarios de Gaceta son shadow users identificados de forma única por `externalKey`:
-
-- **JIT:** después de un login exitoso, si el usuario no existe se crea con rol `USER`; si existe, se actualiza su nombre sin reemplazar sus roles.
-- **Importación administrativa:** un `ADMIN` puede buscar usuarios asignables en Identity Hub e importarlos mediante `/api/users/identity-candidates` y `POST /api/users/import-from-identity`.
-- **Primer administrador:** `npm run bootstrap:admin` crea el primer `ADMIN` usando `BOOTSTRAP_ADMIN_EXTERNAL_KEY`. No promueve automáticamente un usuario local existente.
-
-Los únicos roles locales son `ADMIN` y `USER`. Identity Hub decide quién puede acceder a Gaceta; los roles locales deciden qué puede hacer dentro de Gaceta.
-
-## Configuración SSO
-
-- `GAZETTE_PUBLIC_URL`: URL pública del backend. De ella se derivan `/auth/callback` y la seguridad de las cookies.
-- `GAZETTE_UI_URL`: URL opcional del frontend cuando usa otro origen. Define los redirects y habilita CORS únicamente para ese origen.
-- `IDENTITY_HUB_PUBLIC_URL`: URL pública de Identity Hub usada para authorize, token, JWKS e issuer.
-- `IDENTITY_HUB_INTERNAL_URL`: override opcional para consultar el directorio de usuarios por la red interna; si se omite se usa la URL pública.
-- `OAUTH_CLIENT_ID` y `OAUTH_CLIENT_SECRET`: credenciales confidential registradas en Identity Hub.
-- `BOOTSTRAP_ADMIN_EXTERNAL_KEY`: identificador temporal usado solo para crear el primer administrador.
-
-Identity Hub debe registrar el callback `/auth/callback` resuelto sobre `GAZETTE_PUBLIC_URL`, por ejemplo `http://localhost:7000/auth/callback`.
+La importación de usuarios desde el directorio interno es administrativa: sus endpoints requieren rol `ADMIN` y permiten asignar roles locales. El bootstrap del primer administrador crea un usuario con rol `ADMIN` a partir de `BOOTSTRAP_ADMIN_EXTERNAL_KEY`. Identity Hub controla el acceso global a Gaceta; `ADMIN` y `USER` controlan la autorización local.

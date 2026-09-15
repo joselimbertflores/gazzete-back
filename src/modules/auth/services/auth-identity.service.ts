@@ -125,7 +125,9 @@ export class AuthIdentityService {
   }
 
   private getTokenUrl(): string {
-    const identityHubUrl = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
+    const identityHubUrl =
+      this.configService.get('IDENTITY_HUB_INTERNAL_URL', { infer: true }) ??
+      this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
     return new URL('oauth/token', this.ensureTrailingSlash(identityHubUrl)).toString();
   }
 
