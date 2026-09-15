@@ -36,6 +36,13 @@ export class IdentityHubTokenProtocolError extends Error {
   }
 }
 
+export class IdentityHubLogoutError extends Error {
+  constructor() {
+    super('Identity Hub rejected or could not process the global logout request');
+    this.name = IdentityHubLogoutError.name;
+  }
+}
+
 @Injectable()
 export class AuthIdentityService {
   private readonly requestTimeoutMs = 10_000;
@@ -59,6 +66,26 @@ export class AuthIdentityService {
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
     });
+  }
+
+  async logoutIdentitySession(identitySid: string): Promise<void> {
+    try {
+      await lastValueFrom(
+        this.http.post(
+          this.getIdentitySessionLogoutUrl(),
+          { sid: identitySid },
+          {
+            headers: {
+              Authorization: this.getClientAuthorizationHeader(),
+              'Content-Type': 'application/json',
+            },
+            timeout: this.requestTimeoutMs,
+          },
+        ),
+      );
+    } catch {
+      throw new IdentityHubLogoutError();
+    }
   }
 
   private async requestTokens(payload: Record<string, string>): Promise<IdentityHubTokenResponse> {
@@ -125,10 +152,18 @@ export class AuthIdentityService {
   }
 
   private getTokenUrl(): string {
-    const identityHubUrl =
+    return new URL('oauth/token', this.ensureTrailingSlash(this.getServerToServerBaseUrl())).toString();
+  }
+
+  private getIdentitySessionLogoutUrl(): string {
+    return new URL('internal/sessions/logout', this.ensureTrailingSlash(this.getServerToServerBaseUrl())).toString();
+  }
+
+  private getServerToServerBaseUrl(): string {
+    return (
       this.configService.get('IDENTITY_HUB_INTERNAL_URL', { infer: true }) ??
-      this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
-    return new URL('oauth/token', this.ensureTrailingSlash(identityHubUrl)).toString();
+      this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true })
+    );
   }
 
   private getRedirectUri(): string {

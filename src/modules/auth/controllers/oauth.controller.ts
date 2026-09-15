@@ -123,6 +123,7 @@ export class OAuthController {
   }
 
   private buildSafeErrorLog(error: unknown) {
+    console.log(error);
     const errorRecord = this.asErrorRecord(error);
     const safeLog: Record<string, string | number> = {
       errorType: error instanceof Error ? error.name : typeof error,

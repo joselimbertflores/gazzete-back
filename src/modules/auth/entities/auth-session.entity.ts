@@ -14,12 +14,16 @@ import { User } from 'src/modules/users/entities';
 @Entity('auth_sessions')
 @Index('idx_auth_sessions_user_id', ['userId'])
 @Index('idx_auth_sessions_refresh_expires_at', ['refreshTokenExpiresAt'])
+@Index('idx_auth_sessions_identity_sid', ['identitySid'])
 export class AuthSession {
   @PrimaryColumn({ type: 'varchar', length: 64 })
   id: string;
 
   @Column({ type: 'uuid' })
   userId: string;
+
+  @Column({ type: 'text' })
+  identitySid: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })

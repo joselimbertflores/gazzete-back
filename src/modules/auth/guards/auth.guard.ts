@@ -177,7 +177,7 @@ export class OAuthGuard implements CanActivate {
     session: AuthSession,
     response: Response,
   ): Promise<void> {
-    if (payload.externalKey === session.user.externalKey) return;
+    if (payload.externalKey === session.user.externalKey && payload.sid === session.identitySid) return;
 
     await this.authSessionService.deleteSession(session.id);
     this.clearSessionCookie(response);

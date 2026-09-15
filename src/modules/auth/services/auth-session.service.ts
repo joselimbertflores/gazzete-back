@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomBytes } from 'crypto';
 
@@ -18,6 +18,8 @@ export class SessionReauthorizationRequiredError extends Error {
 
 @Injectable()
 export class AuthSessionService {
+  private readonly logger = new Logger(AuthSessionService.name);
+
   constructor(
     @InjectRepository(AuthSession)
     private readonly sessionRepository: Repository<AuthSession>,
@@ -25,12 +27,13 @@ export class AuthSessionService {
     private readonly identityService: AuthIdentityService,
   ) {}
 
-  async createSession(user: User, tokens: IdentityHubTokenResponse): Promise<AuthSession> {
+  async createSession(user: User, tokens: IdentityHubTokenResponse, identitySid: string): Promise<AuthSession> {
     await this.sessionRepository.delete({ refreshTokenExpiresAt: LessThanOrEqual(new Date()) });
 
     const session = this.sessionRepository.create({
       id: randomBytes(32).toString('base64url'),
       userId: user.id,
+      identitySid,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       refreshTokenExpiresAt: this.expiresAt(tokens.refresh_token_expires_in),
@@ -103,6 +106,26 @@ export class AuthSessionService {
 
   async deleteSession(sessionId: string): Promise<void> {
     await this.sessionRepository.delete({ id: sessionId });
+  }
+
+  async deleteSessionsByIdentitySid(identitySid: string): Promise<void> {
+    await this.sessionRepository.delete({ identitySid });
+  }
+
+  async logoutSession(sessionId: string): Promise<void> {
+    const session = await this.sessionRepository.findOneBy({ id: sessionId });
+    if (!session) return;
+
+    try {
+      await this.identityService.logoutIdentitySession(session.identitySid);
+    } catch (error: unknown) {
+      this.logger.warn(
+        'Identity Hub global logout failed; the local session will still be deleted',
+        error instanceof Error ? error.name : 'Unknown error',
+      );
+    } finally {
+      await this.deleteSession(sessionId);
+    }
   }
 
   private expiresAt(expiresInSeconds: number): Date {

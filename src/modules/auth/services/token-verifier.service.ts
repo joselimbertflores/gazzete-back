@@ -4,8 +4,12 @@ import { ConfigService } from '@nestjs/config';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { JwksClient } from 'jwks-rsa';
 
-import { AccessTokenPayload } from '../interfaces/identity-hub-token.interface';
+import { AccessTokenPayload, LogoutTokenPayload } from '../interfaces/identity-hub-token.interface';
 import { EnvironmentVariables } from 'src/config';
+
+const BACKCHANNEL_LOGOUT_EVENT = 'http://schemas.openid.net/event/backchannel-logout';
+
+class InvalidJwtHeaderError extends Error {}
 
 export enum AccessTokenFailureReason {
   EXPIRED = 'expired',
@@ -46,30 +50,15 @@ export class TokenVerifierService {
 
   async verifyAccessToken(token: string): Promise<AccessTokenPayload> {
     try {
-      const decoded = jwt.decode(token, { complete: true });
-
-      if (
-        decoded?.header?.alg !== 'RS256' ||
-        typeof decoded.header.kid !== 'string' ||
-        decoded.header.kid.length === 0
-      ) {
-        throw new AccessTokenVerificationError(AccessTokenFailureReason.INVALID_HEADER, 'Invalid access token header');
-      }
-
-      const key = await this.jwksClient.getSigningKey(decoded.header.kid);
-      const audience = this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true });
-      const issuer = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
-
-      const verifiedPayload = jwt.verify(token, key.getPublicKey(), {
-        algorithms: ['RS256'],
-        issuer,
-        audience,
-      });
-
+      const verifiedPayload = await this.verifyIdentityHubJwt(token);
       return this.validateIdentityClaims(verifiedPayload);
     } catch (error) {
       if (error instanceof AccessTokenVerificationError) {
         throw error;
+      }
+
+      if (error instanceof InvalidJwtHeaderError) {
+        throw new AccessTokenVerificationError(AccessTokenFailureReason.INVALID_HEADER, 'Invalid access token header');
       }
 
       if (error instanceof jwt.TokenExpiredError) {
@@ -91,6 +80,15 @@ export class TokenVerifierService {
     }
   }
 
+  async verifyLogoutToken(token: string): Promise<LogoutTokenPayload> {
+    try {
+      const verifiedPayload = await this.verifyIdentityHubJwt(token, 'logout+jwt');
+      return this.validateLogoutClaims(verifiedPayload);
+    } catch {
+      throw new UnauthorizedException('Invalid logout token');
+    }
+  }
+
   private validateIdentityClaims(payload: string | JwtPayload): AccessTokenPayload {
     if (
       typeof payload === 'string' ||
@@ -100,6 +98,8 @@ export class TokenVerifierService {
       payload.externalKey.trim().length === 0 ||
       typeof payload.name !== 'string' ||
       payload.name.trim().length === 0 ||
+      typeof payload.sid !== 'string' ||
+      payload.sid.trim().length === 0 ||
       typeof payload.iat !== 'number' ||
       typeof payload.exp !== 'number' ||
       !Number.isFinite(payload.exp)
@@ -115,7 +115,63 @@ export class TokenVerifierService {
       sub: payload.sub.trim(),
       externalKey: payload.externalKey.trim(),
       name: payload.name.trim(),
+      sid: payload.sid.trim(),
     } as AccessTokenPayload;
+  }
+
+  private validateLogoutClaims(payload: string | JwtPayload): LogoutTokenPayload {
+    const audience = this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true });
+    const events: unknown = typeof payload === 'string' ? undefined : payload.events;
+
+    if (
+      typeof payload === 'string' ||
+      payload.aud !== audience ||
+      typeof payload.exp !== 'number' ||
+      !Number.isFinite(payload.exp) ||
+      typeof payload.iat !== 'number' ||
+      !Number.isFinite(payload.iat) ||
+      typeof payload.jti !== 'string' ||
+      payload.jti.trim().length === 0 ||
+      typeof payload.sid !== 'string' ||
+      payload.sid.trim().length === 0 ||
+      typeof events !== 'object' ||
+      events === null ||
+      Array.isArray(events) ||
+      !Object.prototype.hasOwnProperty.call(events, BACKCHANNEL_LOGOUT_EVENT) ||
+      Object.prototype.hasOwnProperty.call(payload, 'nonce')
+    ) {
+      throw new UnauthorizedException('Invalid logout token claims');
+    }
+
+    return {
+      ...payload,
+      jti: payload.jti.trim(),
+      sid: payload.sid.trim(),
+      events: events as Record<string, unknown>,
+    } as LogoutTokenPayload;
+  }
+
+  private async verifyIdentityHubJwt(token: string, requiredType?: string): Promise<string | JwtPayload> {
+    const decoded = jwt.decode(token, { complete: true });
+
+    if (
+      decoded?.header?.alg !== 'RS256' ||
+      typeof decoded.header.kid !== 'string' ||
+      decoded.header.kid.length === 0 ||
+      (requiredType !== undefined && decoded.header.typ !== requiredType)
+    ) {
+      throw new InvalidJwtHeaderError();
+    }
+
+    const key = await this.jwksClient.getSigningKey(decoded.header.kid);
+    const issuer = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
+    const audience = this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true });
+
+    return jwt.verify(token, key.getPublicKey(), {
+      algorithms: ['RS256'],
+      issuer,
+      audience,
+    });
   }
 
   private ensureTrailingSlash(value: string): string {

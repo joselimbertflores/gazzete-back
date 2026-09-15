@@ -27,7 +27,7 @@ export class OAuthService {
 
     const user = await this.usersService.syncUserFromIdentity(decodedAccessToken);
 
-    return this.authSessionService.createSession(user, tokens);
+    return this.authSessionService.createSession(user, tokens, decodedAccessToken.sid);
   }
 
   async createAuthorizationRequest(): Promise<{ url: string; transactionId: string }> {
