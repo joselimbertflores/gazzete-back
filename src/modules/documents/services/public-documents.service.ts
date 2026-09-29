@@ -343,6 +343,7 @@ export class PublicDocumentsService {
       validUntil: doc.validUntil,
       downloadCount: doc.downloadCount,
       typeName: doc.type.name,
+      year: doc.year,
       file: {
         url: this.buildPublicDocumentFileUrl(doc.id),
         name: doc.file.originalName,
